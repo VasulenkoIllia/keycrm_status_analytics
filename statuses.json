@@ -1,0 +1,354 @@
+[
+  {
+    "id": 1,
+    "name": "new",
+    "alias": "new",
+    "is_active": true,
+    "group_id": 1,
+    "group_name": "Новий"
+  },
+  {
+    "id": 20,
+    "name": "Матеріали",
+    "alias": "materiali",
+    "is_active": true,
+    "group_id": 2,
+    "group_name": "Погодження"
+  },
+  {
+    "id": 21,
+    "name": "Макет",
+    "alias": "maket",
+    "is_active": true,
+    "group_id": 2,
+    "group_name": "Погодження"
+  },
+  {
+    "id": 34,
+    "name": "ЗАМІНА",
+    "alias": "zamina",
+    "is_active": true,
+    "group_id": 2,
+    "group_name": "Погодження"
+  },
+  {
+    "id": 40,
+    "name": "Без файлу",
+    "alias": "bez_failu",
+    "is_active": true,
+    "group_id": 2,
+    "group_name": "Погодження"
+  },
+  {
+    "id": 55,
+    "name": "Обробка замовлення",
+    "alias": "obrobka_zamovlennya",
+    "is_active": true,
+    "group_id": 2,
+    "group_name": "Погодження"
+  },
+  {
+    "id": 57,
+    "name": "Оплата не підтверджена",
+    "alias": "oplata_ne_pidtverdzena",
+    "is_active": true,
+    "group_id": 2,
+    "group_name": "Погодження"
+  },
+  {
+    "id": 58,
+    "name": "Уточнення",
+    "alias": "utocnennya",
+    "is_active": true,
+    "group_id": 2,
+    "group_name": "Погодження"
+  },
+  {
+    "id": 59,
+    "name": "Немає в тг",
+    "alias": "nemaje_v_tg",
+    "is_active": true,
+    "group_id": 2,
+    "group_name": "Погодження"
+  },
+  {
+    "id": 60,
+    "name": "затверджується",
+    "alias": "zatverdzujetsya",
+    "is_active": true,
+    "group_id": 2,
+    "group_name": "Погодження"
+  },
+  {
+    "id": 7,
+    "name": "Пакування",
+    "alias": "pakuvannya",
+    "is_active": true,
+    "group_id": 3,
+    "group_name": "Виробництво"
+  },
+  {
+    "id": 22,
+    "name": "Друк",
+    "alias": "druk",
+    "is_active": true,
+    "group_id": 3,
+    "group_name": "Виробництво"
+  },
+  {
+    "id": 23,
+    "name": "Постер",
+    "alias": "poster",
+    "is_active": true,
+    "group_id": 3,
+    "group_name": "Виробництво"
+  },
+  {
+    "id": 29,
+    "name": "Скачано макет",
+    "alias": "skacano_maket",
+    "is_active": true,
+    "group_id": 3,
+    "group_name": "Виробництво"
+  },
+  {
+    "id": 38,
+    "name": "Заміна друк",
+    "alias": "zamina_druk",
+    "is_active": true,
+    "group_id": 3,
+    "group_name": "Виробництво"
+  },
+  {
+    "id": 39,
+    "name": "Заміна пакування",
+    "alias": "zamina_pakuvannya",
+    "is_active": true,
+    "group_id": 3,
+    "group_name": "Виробництво"
+  },
+  {
+    "id": 41,
+    "name": "Заміна скачано макет",
+    "alias": "zamina_skacano_maket",
+    "is_active": true,
+    "group_id": 3,
+    "group_name": "Виробництво"
+  },
+  {
+    "id": 8,
+    "name": "delivered_to_delivery",
+    "alias": "delivered_to_delivery",
+    "is_active": true,
+    "group_id": 4,
+    "group_name": "Доставка"
+  },
+  {
+    "id": 11,
+    "name": "in_transit",
+    "alias": "in_transit",
+    "is_active": true,
+    "group_id": 4,
+    "group_name": "Доставка"
+  },
+  {
+    "id": 26,
+    "name": "Нема ТТН",
+    "alias": "nema_ttn",
+    "is_active": true,
+    "group_id": 4,
+    "group_name": "Доставка"
+  },
+  {
+    "id": 12,
+    "name": "completed",
+    "alias": "completed",
+    "is_active": true,
+    "group_id": 5,
+    "group_name": "Виконано"
+  },
+  {
+    "id": 56,
+    "name": "Оплату отримано відправником",
+    "alias": "oplatu_otrimano_vidpravnikom",
+    "is_active": true,
+    "group_id": 5,
+    "group_name": "Виконано"
+  },
+  {
+    "id": 13,
+    "name": "incorrect_data",
+    "alias": "incorrect_data",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 14,
+    "name": "Не виходить на зв’язок",
+    "alias": "ne_vixodit_na_zvyazok",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 17,
+    "name": "Не влаштувала доставка НП",
+    "alias": "ne_vlastuvala_dostavka_np",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 19,
+    "name": "canceled",
+    "alias": "canceled",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 30,
+    "name": "ТОВАР ПОВЕРТАЄТЬСЯ",
+    "alias": "tovar_povertajetsya",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 31,
+    "name": "НЕ ВЛАШТУВАВ ТОВАР",
+    "alias": "ne_vlastuvav_tovar",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 32,
+    "name": "СКАСУВАВ КЛІЄНТ",
+    "alias": "skasuvav_klijent",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 33,
+    "name": "ІГНОР",
+    "alias": "ignor",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 35,
+    "name": "ДУБЛІКАТ",
+    "alias": "dublikat",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 36,
+    "name": "НЕ ЗАБРАЛИ З ПОШТИ",
+    "alias": "ne_zabrali_z_posti",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 43,
+    "name": "Придбав у конкурентів",
+    "alias": "pridbav_u_konkurentiv",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 44,
+    "name": "Придбав аналог",
+    "alias": "pridbav_analog",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 45,
+    "name": "Відуки/недовіра",
+    "alias": "vidukinedovira",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 46,
+    "name": "Не може забрати фізично",
+    "alias": "ne_moze_zabrati_fizicno",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 47,
+    "name": "Відмовився озвучити причину",
+    "alias": "vidmovivsya_ozvuciti_pricinu",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 48,
+    "name": "Механічні пошкодження",
+    "alias": "mexanicni_poskodzennya",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 49,
+    "name": "Дорого",
+    "alias": "dorogo",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 50,
+    "name": "Спам",
+    "alias": "spam",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 51,
+    "name": "Технічні несправності",
+    "alias": "texnicni_nespravnosti",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 52,
+    "name": "Прийшов не той товар",
+    "alias": "priisov_ne_toi_tovar",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 53,
+    "name": "Пошкоджено перевізником",
+    "alias": "poskodzeno_pereviznikom",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 54,
+    "name": "Неповна комплектація",
+    "alias": "nepovna_komplektaciya",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  }
+]
