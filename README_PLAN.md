@@ -44,11 +44,12 @@
 - Повний цикл: визначаємо за `cycle_rules` (start_group/status → end_group/status); у `orders_current` зберігаємо `started_at`, `delivery_entered_at`, `cycle_duration_to_delivery`.
 - Overrides: якщо є запис в `order_overrides`, беремо з нього `is_urgent`/SLA профіль/цикл замість rule-based.
 
-## 6. API для фронтенду
+## 6. API та стрім для фронтенду
 - `/api/orders` — список з KPI: тривалості по групах, поточний статус, кольори SLA.
 - `/api/orders/{id}/timeline` — таймлайн подій.
 - `/api/dicts/statuses` — словники для поточного проекту.
 - `/api/settings/cycle` — повертає/приймає налаштування старт/фініш груп/статусів для циклу.
+- `/api/stream/orders` — SSE-стрім оновлень (order_updated/invalidate) фільтрований за `project_id`.
 - Відповіді включають `project_id`; фронт фільтрує по вибраному проекту.
 
 ## 6.1 Фронтенд UX (мінімум)
@@ -79,6 +80,7 @@
 - Docker Compose: Postgres + бекенд.
 - `.env`: DB, `KEYCRM_BASE_URL`, токени проектів.
 - CI: lint/test, прогін міграцій.
+- Локально: `docker compose up -d db` (Postgres), застосувати `db/0001_init.sql` через `psql -f db/0001_init.sql`.
 
 ## 10. Мінімальний план спринту
 День 1: міграції БД (projects, статуси, urgent_rules, orders), моделі, завантаження словників двох проектів.  
@@ -105,3 +107,4 @@
 - **Таймзона**: усі розрахунки в UTC; конвертація у фронті під локаль користувача.
 - **Urgent замовлення**: визначати терміновість за наявністю певного товару в `order_items` (rule-based список sku/offer_id). Зберігати ознаку `is_urgent` в `orders_current` і показувати окремо в KPI/фільтрах; SLA може бути жорсткішим для `is_urgent = true`.
 - **Правило терміновості (поточний кейс)**: якщо в замовленні є товар зі `sku = "Термінове виготовлення"` або `offer_id = 16` (product_id 2) — вважаємо замовлення терміновим (`is_urgent = true`). Список правил має бути конфігурованим на проект.
+- **Шина подій**: Redis Pub/Sub (або Postgres NOTIFY) як внутрішній брокер; транслей в браузер через SSE (`/api/stream/orders`). За потреби можна замінити на WebSocket, але стартуємо з SSE.

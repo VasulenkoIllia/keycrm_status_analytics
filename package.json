@@ -8,7 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "fetch:statuses": "node scripts/fetch-order-statuses.js",
-    "export:statuses": "node scripts/export-active-statuses.js"
+    "export:statuses": "node scripts/export-active-statuses.js",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:migrate": "PGHOST=${PGHOST:-localhost} PGPORT=${PGPORT:-5432} PGUSER=${PGUSER:-keycrm} PGPASSWORD=${PGPASSWORD:-keycrm} PGDATABASE=${PGDATABASE:-keycrm} psql \"$PGDATABASE\" -h \"$PGHOST\" -p \"$PGPORT\" -U \"$PGUSER\" -f db/0001_init.sql",
+    "seed:custom": "node scripts/seed-custom.js custom-gifts"
   },
   "dependencies": {
     "@emotion/react": "^11.11.4",
@@ -16,6 +20,7 @@
     "@mui/icons-material": "^5.15.14",
     "@mui/material": "^5.15.14",
     "dayjs": "^1.11.10",
+    "pg": "^8.11.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
