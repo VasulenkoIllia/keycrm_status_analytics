@@ -13,7 +13,6 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import { slaStatus, formatDuration } from '../utils/time';
-import { STAGE_LIMITS_HOURS, STAGE_LABELS } from '../data/mockOrders';
 import StageBar from './StageBar';
 
 const statusColorMap = {
@@ -23,15 +22,12 @@ const statusColorMap = {
   neutral: 'info'
 };
 
-const STAGE_ORDER = ['new', 'approval', 'production', 'delivery', 'done'];
-
-const OrderCard = ({ order, onOpenTimeline }) => {
-  const currentStageKey =
-    STAGE_ORDER.filter((k) => order.stageTimes?.[k]).at(-1) || STAGE_ORDER[0];
+const OrderCard = ({ order, onOpenTimeline, stageLabels = {}, stageLimits = {} }) => {
+  const latestGroupId = Object.keys(order.stageTimes || {}).map(Number).sort((a, b) => b - a)[0];
   const stageState = (() => {
-    if (!currentStageKey) return 'neutral';
-    const seconds = order.stageTimes[currentStageKey];
-    return slaStatus(seconds, STAGE_LIMITS_HOURS[currentStageKey]);
+    if (!latestGroupId) return 'neutral';
+    const seconds = order.stageTimes[latestGroupId] || 0;
+    return slaStatus(seconds, stageLimits[latestGroupId]);
   })();
 
   return (
@@ -46,6 +42,7 @@ const OrderCard = ({ order, onOpenTimeline }) => {
               label={order.currentStatus}
               variant="outlined"
             />
+            {order.isUrgent && <Chip size="small" color="error" label="Термінове" />}
           </Box>
           <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#9ba4b5' }}>
             <Box display="flex" alignItems="center" gap={0.5}>
@@ -63,7 +60,7 @@ const OrderCard = ({ order, onOpenTimeline }) => {
           </Stack>
         </Box>
 
-        <StageBar stageTimes={order.stageTimes} />
+        <StageBar stageTimes={order.stageTimes} stageLabels={stageLabels} stageLimits={stageLimits} />
 
         <Stack direction="row" spacing={1} sx={{ mt: 2, flexWrap: 'wrap' }}>
           {Object.entries(order.stageTimes).map(([stage, seconds]) => (
@@ -71,7 +68,7 @@ const OrderCard = ({ order, onOpenTimeline }) => {
               key={stage}
               size="small"
               icon={<DoneAllIcon fontSize="small" />}
-              label={`${STAGE_LABELS[stage] || stage}: ${formatDuration(seconds)}`}
+              label={`${stageLabels[Number(stage)] || stage}: ${formatDuration(seconds)}`}
               sx={{ bgcolor: '#111722' }}
             />
           ))}

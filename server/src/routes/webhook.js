@@ -1,7 +1,10 @@
 import express from 'express';
 import { handleWebhook } from '../services/webhook.js';
+import { webhookAuth } from '../middleware/auth.js';
 
 const router = express.Router();
+
+router.use(webhookAuth);
 
 router.post('/', async (req, res) => {
   const project = req.query.project || req.body.project || null;

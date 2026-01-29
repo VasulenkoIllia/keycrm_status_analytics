@@ -7,7 +7,11 @@ import pinoHttp from 'pino-http';
 import { createDb } from './db/pool.js';
 import { createRedisClients } from './db/redis.js';
 import webhookRouter from './routes/webhook.js';
+import ordersRouter from './routes/orders.js';
+import dictsRouter from './routes/dicts.js';
+import settingsRouter from './routes/settings.js';
 import streamRouter from './routes/stream.js';
+import { apiAuth, loginHandler } from './middleware/auth.js';
 
 dotenv.config({ path: '../.env' });
 
@@ -38,6 +42,11 @@ app.get('/health', async (req, res) => {
 });
 
 app.use('/webhooks/keycrm', webhookRouter);
+app.post('/api/login', express.json(), loginHandler);
+app.use('/api', apiAuth);
+app.use('/api/orders', ordersRouter);
+app.use('/api/dicts', dictsRouter);
+app.use('/api/settings', settingsRouter);
 app.use('/api/stream', streamRouter);
 
 const PORT = process.env.PORT || 4000;

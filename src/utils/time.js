@@ -1,8 +1,9 @@
 import dayjs from 'dayjs';
 
 export const formatDuration = (seconds) => {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
+  const total = Math.max(0, Math.round(seconds || 0));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
   return `${hours} год ${minutes.toString().padStart(2, '0')} хв`;
 };
 

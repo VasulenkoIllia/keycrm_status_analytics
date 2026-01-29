@@ -62,8 +62,8 @@ const FilterBar = ({ filters, onChange }) => {
         sx={{ minWidth: 220 }}
       />
       <Box flex={1} />
-      <Button variant="outlined" color="primary">Скинути</Button>
-      <Button variant="contained" color="primary">Застосувати</Button>
+      <Button variant="outlined" color="primary" onClick={() => onChange({ from: '', to: '', query: '' })}>Скинути</Button>
+      <Button variant="contained" color="primary" onClick={() => onChange({ ...filters })}>Застосувати</Button>
     </Box>
   );
 };

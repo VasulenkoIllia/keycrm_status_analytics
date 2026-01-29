@@ -12,20 +12,30 @@ export function queueFetchItemsAndUrgent(db, projectId, orderId, redisPub) {
   return fetchItemsAndUrgent(db, projectId, orderId, redisPub).finally(() => inFlight.delete(key));
 }
 
-async function fetchItemsAndUrgent(db, projectId, orderId, redisPub) {
+async function fetchItemsAndUrgent(db, projectId, orderId, redisPub, attempt = 1) {
   const project = await getProject(db, projectId);
   const baseUrl = (project.base_url || process.env.KEYCRM_BASE_URL || '').replace(/\/$/, '');
   const token = project.api_token || process.env.KEYCRM_API_TOKEN;
   if (!baseUrl || !token) throw new Error('missing base_url or api_token for project');
 
   const url = `${baseUrl}/order/${orderId}?include=products.offer`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
-  });
-  if (!res.ok) {
-    throw new Error(`fetch order ${orderId} failed: ${res.status} ${res.statusText}`);
+  let data;
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+    });
+    if (!res.ok) {
+      throw new Error(`fetch order ${orderId} failed: ${res.status} ${res.statusText}`);
+    }
+    data = await res.json();
+  } catch (err) {
+    if (attempt < 3) {
+      const delay = 500 * attempt;
+      await new Promise((r) => setTimeout(r, delay));
+      return fetchItemsAndUrgent(db, projectId, orderId, redisPub, attempt + 1);
+    }
+    throw err;
   }
-  const data = await res.json();
   const products = data?.products || [];
 
   await db.query('BEGIN');

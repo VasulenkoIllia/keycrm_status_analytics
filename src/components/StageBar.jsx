@@ -1,6 +1,5 @@
 import React from 'react';
 import { Box, Typography, Chip, Tooltip } from '@mui/material';
-import { STAGE_LIMITS_HOURS, STAGE_LABELS } from '../data/mockOrders';
 import { formatDuration, slaStatus } from '../utils/time';
 
 const STATUS_COLORS = {
@@ -10,13 +9,13 @@ const STATUS_COLORS = {
   neutral: '#7c8df2'
 };
 
-const StageBar = ({ stageTimes = {} }) => {
-  const items = Object.entries(STAGE_LABELS).filter(([k]) => k !== 'done');
+const StageBar = ({ stageTimes = {}, stageLabels = {}, stageLimits = {} }) => {
+  const items = Object.entries(stageTimes);
   return (
     <Box display="flex" gap={1.5} sx={{ mt: 1, flexWrap: 'wrap' }}>
-      {items.map(([key, label]) => {
-        const seconds = stageTimes[key] ?? 0;
-        const limit = STAGE_LIMITS_HOURS[key];
+      {items.map(([key, seconds]) => {
+        const label = stageLabels[Number(key)] || key;
+        const limit = stageLimits[Number(key)];
         const state = slaStatus(seconds, limit);
         const ratio = Math.min(1, limit ? seconds / (limit * 3600) : 0);
         return (

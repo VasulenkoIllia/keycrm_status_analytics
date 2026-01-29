@@ -12,7 +12,9 @@
     "db:up": "docker compose up -d db redis",
     "db:down": "docker compose down",
     "db:migrate": "PGHOST=${PGHOST:-localhost} PGPORT=${PGPORT:-5432} PGUSER=${PGUSER:-keycrm} PGPASSWORD=${PGPASSWORD:-keycrm} PGDATABASE=${PGDATABASE:-keycrm} psql \"$PGDATABASE\" -h \"$PGHOST\" -p \"$PGPORT\" -U \"$PGUSER\" -f db/0001_init.sql",
-    "seed:custom": "node scripts/seed-custom.js custom-gifts"
+    "seed:custom": "node scripts/seed-custom.js custom-gifts",
+    "server": "cd server && npm run dev",
+    "frontend": "npm run dev"
   },
   "dependencies": {
     "@emotion/react": "^11.11.4",

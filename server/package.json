@@ -16,5 +16,7 @@
     "pino": "^9.0.0",
     "pino-http": "^9.0.0",
     "redis": "^4.6.7"
+    ,
+    "jsonwebtoken": "^9.0.2"
   }
 }
