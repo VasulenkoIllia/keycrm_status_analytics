@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, CardContent, Grid, Typography, Stack, Chip } from '@mui/material';
+import { Card, CardContent, Grid, Typography, Stack, Chip, LinearProgress } from '@mui/material';
 import { formatDuration } from '../utils/time';
 
 const fmtHours = (sec) => (sec ? (sec / 3600).toFixed(1) + ' год' : '—');
@@ -22,6 +22,8 @@ export const AnalyticsPanel = ({ orders = [], stageLabels = {} }) => {
 
   const urgentCount = orders.filter((o) => o.is_urgent).length;
   const slaOk = orders.filter((o) => o.sla_states && Object.values(o.sla_states).every((s) => s === 'ok')).length;
+  const slaNear = orders.filter((o) => o.sla_states && Object.values(o.sla_states).some((s) => s === 'near') && !Object.values(o.sla_states).some((s) => s === 'over')).length;
+  const slaOver = orders.filter((o) => o.sla_states && Object.values(o.sla_states).some((s) => s === 'over')).length;
 
   return (
     <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -46,9 +48,14 @@ export const AnalyticsPanel = ({ orders = [], stageLabels = {} }) => {
       <Grid item xs={12} md={3}>
         <Card>
           <CardContent>
-            <Typography variant="subtitle2" color="text.secondary">SLA OK</Typography>
-            <Typography variant="h5">{slaOk}</Typography>
-            <Typography variant="caption" color="text.secondary">із {totalOrders}</Typography>
+            <Typography variant="subtitle2" color="text.secondary">SLA</Typography>
+            <Typography variant="body2">OK: {slaOk} | Near: {slaNear} | Over: {slaOver}</Typography>
+            <LinearProgress
+              variant="determinate"
+              value={(slaOk / totalOrders) * 100}
+              sx={{ mt: 1.5 }}
+            />
+            <Typography variant="caption" color="text.secondary">OK частка: {Math.round((slaOk / totalOrders) * 100)}%</Typography>
           </CardContent>
         </Card>
       </Grid>

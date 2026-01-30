@@ -68,3 +68,41 @@ export function openOrdersStream(projectId, onMessage) {
   };
   return es;
 }
+
+export async function fetchSettingsCycle(projectId) {
+  const url = new URL('/api/settings/cycle', API_BASE);
+  url.searchParams.set('project_id', projectId);
+  const res = await fetch(url, { headers: { ...authHeaders() } });
+  if (!res.ok) throw new Error('Не вдалося отримати налаштування циклу');
+  return res.json();
+}
+
+export async function fetchSettingsSLA(projectId) {
+  const url = new URL('/api/settings/sla', API_BASE);
+  url.searchParams.set('project_id', projectId);
+  const res = await fetch(url, { headers: { ...authHeaders() } });
+  if (!res.ok) throw new Error('Не вдалося отримати SLA');
+  return res.json();
+}
+
+export async function saveSettingsSLA(projectId, rules) {
+  const url = new URL('/api/settings/sla', API_BASE);
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ project_id: projectId, rules })
+  });
+  if (!res.ok) throw new Error('Не вдалося зберегти SLA');
+  return res.json();
+}
+
+export async function saveSettingsCycle(projectId, payload) {
+  const url = new URL('/api/settings/cycle', API_BASE);
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ project_id: projectId, ...payload })
+  });
+  if (!res.ok) throw new Error('Не вдалося зберегти цикл');
+  return res.json();
+}

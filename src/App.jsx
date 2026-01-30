@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Container, Grid, Typography, Stack, Chip, Button, TextField } from '@mui/material';
+import { Box, Container, Grid, Typography, Stack, Chip, Button, TextField, Dialog, DialogTitle, DialogContent, IconButton } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 import FilterBar from './components/FilterBar';
 import OrderCard from './components/OrderCard';
 import TimelineModal from './components/TimelineModal';
 import AnalyticsPanel from './components/AnalyticsPanel';
-import { fetchOrders, fetchTimeline, fetchDicts, openOrdersStream, setApiToken, login } from './api/client';
+import SettingsPanel from './components/SettingsPanel';
+import { fetchOrders, fetchTimeline, fetchDicts, openOrdersStream, setApiToken, login, fetchSettingsSLA } from './api/client';
 import { STAGE_LABELS as MOCK_STAGE_LABELS } from './data/mockOrders';
 
 const PROJECTS = [
@@ -25,6 +27,9 @@ const App = () => {
   const [orders, setOrders] = useState([]);
   const [selected, setSelected] = useState(null);
   const [timeline, setTimeline] = useState([]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [slaNormal, setSlaNormal] = useState({ 1: 8, 2: 24, 3: 24, 4: 12 });
+  const [slaUrgent, setSlaUrgent] = useState({ 1: 8, 2: 16, 3: 16, 4: 8 });
 
   const groupName = (groupId) =>
     dicts.groups.find((g) => g.group_id === groupId)?.group_name ||
@@ -34,13 +39,25 @@ const App = () => {
   const statusName = (statusId) =>
     dicts.statuses.find((s) => s.status_id === statusId)?.name || `#${statusId}`;
 
-  const stageLimits = { 1: 8, 2: 24, 3: 24, 4: 12 };
+  const stageLimits = slaNormal;
 
-  const loadData = async () => {
+  const loadData = async (applyFilters = true) => {
     if (!projectId) return;
-    const [d, o] = await Promise.all([fetchDicts(projectId), fetchOrders(projectId, filters)]);
+    const [d, o, sla] = await Promise.all([
+      fetchDicts(projectId),
+      fetchOrders(projectId, applyFilters ? filters : {}),
+      fetchSettingsSLA(projectId)
+    ]);
     setDicts(d);
     setOrders(o);
+    const normal = { ...slaNormal };
+    const urgent = { ...slaUrgent };
+    sla.rules.forEach((r) => {
+      if (r.is_urgent) urgent[r.group_id] = Number(r.limit_hours);
+      else normal[r.group_id] = Number(r.limit_hours);
+    });
+    setSlaNormal(normal);
+    setSlaUrgent(urgent);
   };
 
   // Проставити токен у клієнт при зміні стейту
@@ -176,17 +193,51 @@ const App = () => {
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
+      <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between" mb={3}>
         <Box>
-          <Typography variant="h5" fontWeight={700}>Трекер часу — {PROJECTS.find((p) => p.id === projectId)?.name}</Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>
+            Трекер часу — {PROJECTS.find((p) => p.id === projectId)?.name}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: '100%', display: 'block' }}>
             Ланцюжок: {Object.values(stageLabels).join(' → ')}
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Chip label="SLA: Новий до 12 год" color="success" variant="outlined" />
-          <Chip label="Погодження/Виробництво до 24 год" color="warning" variant="outlined" />
-          <Chip label="Доставка до 12 год" color="info" variant="outlined" />
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" rowGap={1}>
+          {Object.entries(stageLimits).map(([gid, limit]) => {
+            const urgent = slaUrgent[gid] ?? limit;
+            const label = stageLabels[gid] || `Група ${gid}`;
+            const fmt = (v) => {
+              const h = Math.floor(v || 0);
+              const m = Math.round(((v || 0) - h) * 60);
+              return `${h}:${String(m).padStart(2, '0')}`;
+            };
+            return (
+              <Box
+                key={gid}
+                sx={{
+                  border: '1px solid',
+                  borderColor:
+                    Number(gid) === 1 ? 'success.main' : Number(gid) === 4 ? 'info.main' : 'warning.main',
+                  borderRadius: 10,
+                  px: 1.25,
+                  py: 0.75,
+                  minWidth: 120,
+                  backgroundColor: 'rgba(255,255,255,0.02)',
+                  textAlign: 'center'
+                }}
+              >
+                <Typography variant="caption" sx={{ display: 'block', lineHeight: 1.2 }}>
+                  {label}
+                </Typography>
+                <Typography variant="caption" sx={{ display: 'block', lineHeight: 1.2 }}>
+                  ЗВ: {fmt(limit)}
+                </Typography>
+                <Typography variant="caption" sx={{ display: 'block', lineHeight: 1.2 }}>
+                  ТР: {fmt(urgent)}
+                </Typography>
+              </Box>
+            );
+          })}
           <Button
             size="small"
             variant="text"
@@ -218,9 +269,43 @@ const App = () => {
         </Stack>
       </Box>
 
+      <Box display="flex" justifyContent="flex-end" sx={{ mb: 2 }}>
+        <Button size="small" variant="outlined" onClick={() => setShowSettings(true)}>
+          Налаштування
+        </Button>
+      </Box>
+
+      <Dialog
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Налаштування
+          <IconButton size="small" onClick={() => setShowSettings(false)}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <SettingsPanel
+            projectId={projectId}
+            groups={dicts.groups}
+            statuses={dicts.statuses}
+            slaNormal={slaNormal}
+            slaUrgent={slaUrgent}
+            onSlaSaved={(normal, urgent) => {
+              setSlaNormal(normal);
+              setSlaUrgent(urgent);
+            }}
+            onCycleSaved={() => loadData(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
       <AnalyticsPanel orders={orders} stageLabels={stageLabels} />
 
-      <FilterBar filters={filters} onChange={setFilters} />
+      <FilterBar filters={filters} onChange={setFilters} onSubmit={() => loadData(true)} />
 
       <Grid container spacing={2}>
         {filteredOrders.map((order) => (

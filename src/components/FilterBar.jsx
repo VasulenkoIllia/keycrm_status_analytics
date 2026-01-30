@@ -3,7 +3,7 @@ import { Box, TextField, InputAdornment, IconButton, Button } from '@mui/materia
 import SearchIcon from '@mui/icons-material/Search';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 
-const FilterBar = ({ filters, onChange }) => {
+const FilterBar = ({ filters, onChange, onSubmit }) => {
   const handleChange = (key) => (event) => {
     onChange({ ...filters, [key]: event.target.value });
   };
@@ -63,7 +63,7 @@ const FilterBar = ({ filters, onChange }) => {
       />
       <Box flex={1} />
       <Button variant="outlined" color="primary" onClick={() => onChange({ from: '', to: '', query: '' })}>Скинути</Button>
-      <Button variant="contained" color="primary" onClick={() => onChange({ ...filters })}>Застосувати</Button>
+      <Button variant="contained" color="primary" onClick={onSubmit}>Застосувати</Button>
     </Box>
   );
 };

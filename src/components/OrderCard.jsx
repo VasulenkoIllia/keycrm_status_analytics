@@ -33,18 +33,13 @@ const OrderCard = ({ order, onOpenTimeline, stageLabels = {}, stageLimits = {} }
   return (
     <Card sx={{ background: '#0f1219' }}>
       <CardContent>
-        <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
-          <Box display="flex" alignItems="center" gap={1.5}>
+        <Box display="flex" alignItems={{ xs: 'flex-start', sm: 'center' }} justifyContent="space-between" flexDirection={{ xs: 'column', sm: 'row' }} gap={1} mb={1}>
+          <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
             <Typography variant="h6">#{order.id}</Typography>
-            <Chip
-              size="small"
-              color={statusColorMap[stageState]}
-              label={order.currentStatus}
-              variant="outlined"
-            />
+            <Chip size="small" color={statusColorMap[stageState]} label={order.currentStatus} variant="outlined" />
             {order.isUrgent && <Chip size="small" color="error" label="Термінове" />}
           </Box>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#9ba4b5' }}>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#9ba4b5' }} flexWrap="wrap" rowGap={0.5}>
             <Box display="flex" alignItems="center" gap={0.5}>
               <AccessTimeIcon fontSize="small" />
               <Typography variant="body2">
