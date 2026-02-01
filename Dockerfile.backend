@@ -10,6 +10,7 @@ RUN apk add --no-cache postgresql-client \
 COPY server ./server
 COPY scripts ./scripts
 COPY db ./db
+COPY statuses.json /app/statuses.json
 RUN ln -s /app/server/node_modules /app/node_modules
 
 ENV NODE_ENV=production
