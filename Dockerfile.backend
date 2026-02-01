@@ -4,7 +4,8 @@ WORKDIR /app
 
 COPY server/package*.json ./server/
 
-RUN cd server && npm ci --only=production
+RUN apk add --no-cache postgresql-client \
+  && cd server && npm ci --only=production
 
 COPY server ./server
 COPY scripts ./scripts
