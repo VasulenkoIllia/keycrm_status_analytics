@@ -13,6 +13,7 @@ COPY db ./db
 
 ENV NODE_ENV=production
 ENV TZ=Europe/Kyiv
+ENV NODE_PATH=/app/server/node_modules
 
 EXPOSE 4000
 
