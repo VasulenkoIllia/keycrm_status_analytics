@@ -2,17 +2,17 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY server/package*.json server/
+COPY server/package*.json ./server/
 
 RUN cd server && npm ci --only=production
 
 COPY server ./server
-
-WORKDIR /app/server
+COPY scripts ./scripts
+COPY db ./db
 
 ENV NODE_ENV=production
 ENV TZ=Europe/Kyiv
 
 EXPOSE 4000
 
-CMD ["node", "src/index.js"]
+CMD ["node", "server/src/index.js"]
