@@ -9,19 +9,20 @@ const STATUS_COLORS = {
   neutral: '#7c8df2'
 };
 
-const StageBar = ({ stageTimes = {}, stageLabels = {}, stageLimits = {} }) => {
+const StageBar = ({ stageTimes = {}, stageLabels = {}, stageLimits = {}, nearThreshold = 0.8 }) => {
   const items = Object.entries(stageTimes);
   return (
     <Box display="flex" gap={1.5} sx={{ mt: 1, flexWrap: 'wrap' }}>
       {items.map(([key, seconds]) => {
         const label = stageLabels[Number(key)] || key;
         const limit = stageLimits[Number(key)];
-        const state = slaStatus(seconds, limit);
+        const state = slaStatus(seconds, limit, nearThreshold);
         const ratio = Math.min(1, limit ? seconds / (limit * 3600) : 0);
+        const limitLabel = limit ? formatDuration(limit * 3600) : '—';
         return (
           <Tooltip
             key={key}
-            title={`Ліміт: ${limit} год · Факт: ${formatDuration(seconds)}`}
+            title={`Ліміт: ${limitLabel} · Факт: ${formatDuration(seconds)}`}
             arrow
             placement="top"
           >
@@ -39,7 +40,7 @@ const StageBar = ({ stageTimes = {}, stageLabels = {}, stageLimits = {} }) => {
                 <Typography variant="subtitle2">{label}</Typography>
                 <Chip
                   size="small"
-                  label={`${limit} год`}
+                  label={limitLabel}
                   sx={{ bgcolor: '#1b2130', color: '#9ba4b5' }}
                 />
               </Box>

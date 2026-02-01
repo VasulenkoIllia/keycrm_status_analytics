@@ -9,10 +9,10 @@ export const formatDuration = (seconds) => {
 
 export const fmtDateTime = (iso) => (iso ? dayjs(iso).format('DD.MM HH:mm') : '—');
 
-export const slaStatus = (seconds, limitHours) => {
+export const slaStatus = (seconds, limitHours, nearThreshold = 0.8) => {
   if (!limitHours) return 'neutral';
   const limit = limitHours * 3600;
-  const warn = limit * 0.8;
+  const warn = limit * nearThreshold;
   if (seconds > limit) return 'over';
   if (seconds >= warn) return 'near';
   return 'ok';

@@ -80,12 +80,21 @@ app.set('redisPub', redisPub);
 app.set('redisSub', redisSub);
 
 app.get('/health', async (req, res) => {
+  const checks = { db: 'unknown', redis: 'unknown' };
   try {
     await pool.query('SELECT 1');
-    res.json({ status: 'ok' });
+    checks.db = 'ok';
   } catch (e) {
-    res.status(500).json({ status: 'error', error: e.message });
+    checks.db = `error: ${e.message}`;
   }
+  try {
+    await redisPub.ping();
+    checks.redis = 'ok';
+  } catch (e) {
+    checks.redis = `error: ${e.message}`;
+  }
+  const status = Object.values(checks).every((v) => v === 'ok') ? 'ok' : 'degraded';
+  res.status(status === 'ok' ? 200 : 503).json({ status, checks });
 });
 
 app.use('/webhooks/keycrm', webhookRouter);

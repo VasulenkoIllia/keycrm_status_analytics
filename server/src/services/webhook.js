@@ -11,7 +11,20 @@ export async function handleWebhook(db, redisPub, projectIdInput, body) {
   if (!body?.context) throw new Error('no context');
   const ctx = body.context;
 
+  // Якщо замовлення ще не бачили, приймаємо лише статус із групи "Новий" (group_id = 1).
+  // Це захищає від ситуацій, коли CRM шле події по старих замовленнях, що вже у процесі.
+  const existsRes = await db.query('SELECT 1 FROM orders_current WHERE project_id = $1 AND order_id = $2', [
+    projectId,
+    ctx.id
+  ]);
+  const alreadyTracked = existsRes.rowCount > 0;
+  if (!alreadyTracked && ctx.status_group_id !== 1) {
+    // ігноруємо подію, але не кидаємо помилку, щоб вебхук не ретраївся
+    return;
+  }
+
   const dedup = buildDedup(projectId, ctx);
+  const createdAt = ctx.created_at || ctx.ordered_at || null;
 
   await db.query('BEGIN');
   try {
@@ -26,7 +39,7 @@ export async function handleWebhook(db, redisPub, projectIdInput, body) {
         ctx.status_id,
         ctx.status_group_id,
         ctx.status_changed_at,
-        ctx.created_at || ctx.ordered_at || null,
+        createdAt,
         body,
         dedup
       ]
@@ -34,21 +47,23 @@ export async function handleWebhook(db, redisPub, projectIdInput, body) {
 
     // update orders_current basic fields
     await db.query(
-      `INSERT INTO orders_current (project_id, order_id, started_at, last_status_id, last_status_group_id, last_changed_at)
-       VALUES ($1,$2,$3,$4,$5,$6)
+      `INSERT INTO orders_current (project_id, order_id, started_at, last_status_id, last_status_group_id, last_changed_at, order_created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
        ON CONFLICT (project_id, order_id) DO UPDATE
          SET last_status_id = EXCLUDED.last_status_id,
              last_status_group_id = EXCLUDED.last_status_group_id,
              last_changed_at = EXCLUDED.last_changed_at,
+             order_created_at = COALESCE(orders_current.order_created_at, EXCLUDED.order_created_at),
              updated_at = NOW(),
              started_at = COALESCE(orders_current.started_at, EXCLUDED.started_at)`,
       [
         projectId,
         ctx.id,
-        ctx.created_at || ctx.ordered_at || ctx.status_changed_at,
+        createdAt || ctx.status_changed_at,
         ctx.status_id,
         ctx.status_group_id,
-        ctx.status_changed_at
+        ctx.status_changed_at,
+        createdAt
       ]
     );
 

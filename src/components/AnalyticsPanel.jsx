@@ -1,29 +1,67 @@
 import React from 'react';
-import { Card, CardContent, Grid, Typography, Stack, Chip, LinearProgress } from '@mui/material';
+import { Card, CardContent, Grid, Typography, Stack, Chip, LinearProgress, Box } from '@mui/material';
 import { formatDuration } from '../utils/time';
 
-const fmtHours = (sec) => (sec ? (sec / 3600).toFixed(1) + ' год' : '—');
+const fmtHours = (sec) => (sec ? formatDuration(sec) : '—');
 
 export const AnalyticsPanel = ({ orders = [], stageLabels = {} }) => {
   if (!orders.length) return null;
 
   const totalOrders = orders.length;
-  const totalCycleSec = orders.reduce((s, o) => s + (o.cycle_seconds || 0), 0);
-  const avgCycleSec = totalCycleSec / totalOrders || 0;
+  const cycles = orders.map((o) => o.cycle_seconds || 0).filter((v) => v > 0).sort((a, b) => a - b);
+  const totalCycleSec = cycles.reduce((s, v) => s + v, 0);
+  const avgCycleSec = totalCycleSec / (cycles.length || 1);
+
+  const percentile = (arr, p) => {
+    if (!arr.length) return 0;
+    const idx = (arr.length - 1) * p;
+    const lo = Math.floor(idx);
+    const hi = Math.ceil(idx);
+    if (lo === hi) return arr[lo];
+    return arr[lo] + (arr[hi] - arr[lo]) * (idx - lo);
+  };
+
+  const medianCycle = percentile(cycles, 0.5);
+  const p95Cycle = percentile(cycles, 0.95);
 
   const stageTotals = {};
+  const stageCalendar = {};
   orders.forEach((o) => {
     if (o.stage_seconds) {
       Object.entries(o.stage_seconds).forEach(([g, sec]) => {
         stageTotals[g] = (stageTotals[g] || 0) + sec;
       });
     }
+    if (o.stage_calendar_seconds) {
+      Object.entries(o.stage_calendar_seconds).forEach(([g, sec]) => {
+        stageCalendar[g] = (stageCalendar[g] || 0) + sec;
+      });
+    }
   });
+  const totalWorking = Object.values(stageTotals).reduce((s, v) => s + v, 0);
+  const totalCalendar = Object.values(stageCalendar).reduce((s, v) => s + v, 0);
 
   const urgentCount = orders.filter((o) => o.is_urgent).length;
-  const slaOk = orders.filter((o) => o.sla_states && Object.values(o.sla_states).every((s) => s === 'ok')).length;
-  const slaNear = orders.filter((o) => o.sla_states && Object.values(o.sla_states).some((s) => s === 'near') && !Object.values(o.sla_states).some((s) => s === 'over')).length;
-  const slaOver = orders.filter((o) => o.sla_states && Object.values(o.sla_states).some((s) => s === 'over')).length;
+  const normalCount = totalOrders - urgentCount;
+
+  const getOrderSlaState = (o) => {
+    if (!o.sla_states) return 'neutral';
+    const vals = Object.values(o.sla_states);
+    if (vals.some((v) => v === 'over')) return 'over';
+    if (vals.some((v) => v === 'near')) return 'near';
+    if (vals.some((v) => v === 'ok')) return 'ok';
+    return 'neutral';
+  };
+
+  let slaOk = 0;
+  let slaNear = 0;
+  let slaOver = 0;
+  orders.forEach((o) => {
+    const st = getOrderSlaState(o);
+    if (st === 'over') slaOver += 1;
+    else if (st === 'near') slaNear += 1;
+    else if (st === 'ok') slaOk += 1;
+  });
 
   return (
     <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -32,7 +70,7 @@ export const AnalyticsPanel = ({ orders = [], stageLabels = {} }) => {
           <CardContent>
             <Typography variant="subtitle2" color="text.secondary">Замовлень</Typography>
             <Typography variant="h5">{totalOrders}</Typography>
-            <Typography variant="caption" color="text.secondary">Термінові: {urgentCount}</Typography>
+            <Typography variant="caption" color="text.secondary">Термінові: {urgentCount} • Звичайні: {normalCount}</Typography>
           </CardContent>
         </Card>
       </Grid>
@@ -41,7 +79,8 @@ export const AnalyticsPanel = ({ orders = [], stageLabels = {} }) => {
           <CardContent>
             <Typography variant="subtitle2" color="text.secondary">Середній цикл</Typography>
             <Typography variant="h5">{formatDuration(avgCycleSec)}</Typography>
-            <Typography variant="caption" color="text.secondary">Сумарно: {fmtHours(totalCycleSec)}</Typography>
+            <Typography variant="caption" color="text.secondary">Медіана: {formatDuration(medianCycle)} | P95: {formatDuration(p95Cycle)}</Typography>
+            <Typography variant="caption" color="text.secondary" display="block">Сумарно: {fmtHours(totalCycleSec)}</Typography>
           </CardContent>
         </Card>
       </Grid>
@@ -63,11 +102,35 @@ export const AnalyticsPanel = ({ orders = [], stageLabels = {} }) => {
         <Card>
           <CardContent>
             <Typography variant="subtitle2" color="text.secondary">Час по етапах</Typography>
-            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', mt: 1 }}>
-              {Object.entries(stageTotals).map(([g, sec]) => (
-                <Chip key={g} size="small" label={`${stageLabels[Number(g)] || g}: ${fmtHours(sec)}`} />
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gap: 1,
+                mt: 1
+              }}
+            >
+              {Object.keys({ ...stageTotals, ...stageCalendar }).map((g) => (
+                <Chip
+                  key={`stage-${g}`}
+                  size="small"
+                  label={`${stageLabels[Number(g)] || g}: робочий ${fmtHours(stageTotals[g])} | фактичний ${fmtHours(stageCalendar[g])}`}
+                  sx={{ width: '100%', justifyContent: 'flex-start' }}
+                />
               ))}
-            </Stack>
+              <Chip
+                key="total-work"
+                size="small"
+                label={`Σ Робочий: ${fmtHours(totalWorking)}`}
+                sx={{ width: '100%', justifyContent: 'flex-start' }}
+              />
+              <Chip
+                key="total-cal"
+                size="small"
+                label={`Σ Фактичний: ${fmtHours(totalCalendar)}`}
+                sx={{ width: '100%', justifyContent: 'flex-start' }}
+              />
+            </Box>
           </CardContent>
         </Card>
       </Grid>

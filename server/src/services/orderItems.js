@@ -29,14 +29,18 @@ async function fetchItemsAndUrgent(db, projectId, orderId, redisPub, attempt = 1
     }
     data = await res.json();
   } catch (err) {
-    if (attempt < 3) {
+    if (attempt < 5) {
       const delay = 500 * attempt;
+      console.warn(`retry fetch items order ${orderId} (attempt ${attempt}) after ${delay}ms: ${err.message}`);
       await new Promise((r) => setTimeout(r, delay));
       return fetchItemsAndUrgent(db, projectId, orderId, redisPub, attempt + 1);
     }
+    console.error(`fetch items failed order ${orderId}: ${err.message}`);
+    await publishOrderUpdate(projectId, orderId, { type: 'order_error', reason: 'fetch_items_failed', message: err.message }, redisPub);
     throw err;
   }
   const products = data?.products || [];
+  const orderCreated = data?.created_at || data?.ordered_at || null;
 
   await db.query('BEGIN');
   try {
@@ -60,17 +64,17 @@ async function fetchItemsAndUrgent(db, projectId, orderId, redisPub, attempt = 1
     }
 
     const rules = await loadUrgentRules(db, projectId);
-    const urgent = isOrderUrgent(rules, products);
+    const { urgent, rule } = isOrderUrgent(rules, products);
 
     await db.query(
       `UPDATE orders_current
-       SET is_urgent = $3, updated_at = NOW()
+       SET is_urgent = $3, urgent_rule = $4, order_created_at = COALESCE(order_created_at, $5), updated_at = NOW()
        WHERE project_id = $1 AND order_id = $2`,
-      [projectId, orderId, urgent]
+      [projectId, orderId, urgent, rule, orderCreated]
     );
 
     // Publish update
-    await publishOrderUpdate(projectId, orderId, { type: 'order_updated', is_urgent: urgent }, redisPub);
+    await publishOrderUpdate(projectId, orderId, { type: 'order_updated', is_urgent: urgent, urgent_rule: rule }, redisPub);
 
     await db.query('COMMIT');
   } catch (err) {

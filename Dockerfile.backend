@@ -1,0 +1,18 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY server/package*.json server/
+
+RUN cd server && npm ci --only=production
+
+COPY server ./server
+
+WORKDIR /app/server
+
+ENV NODE_ENV=production
+ENV TZ=Europe/Kyiv
+
+EXPOSE 4000
+
+CMD ["node", "src/index.js"]

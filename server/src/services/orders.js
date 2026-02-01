@@ -87,13 +87,17 @@ function sumWorkingForWindow(events, startAt, endAt, workingMap) {
 }
 
 export async function getOrdersList(db, projectId, { from = null, to = null, limit = 50 } = {}) {
+  // load near threshold
+  const ps = await db.query('SELECT sla_near_threshold FROM project_settings WHERE project_id = $1', [projectId]);
+  const nearThreshold = Number(ps.rows[0]?.sla_near_threshold) || 0.8;
+
   // 1) pick orders
   const ordersRes = await db.query(
-    `SELECT project_id, order_id, last_status_id, last_status_group_id, last_changed_at, is_urgent, started_at
+    `SELECT project_id, order_id, last_status_id, last_status_group_id, last_changed_at, is_urgent, urgent_rule, started_at, order_created_at
      FROM orders_current
      WHERE project_id = $1
-       AND ($2::timestamptz IS NULL OR started_at >= $2)
-       AND ($3::timestamptz IS NULL OR started_at <= $3)
+       AND ($2::timestamptz IS NULL OR order_created_at >= $2)
+       AND ($3::timestamptz IS NULL OR order_created_at <= $3)
      ORDER BY last_changed_at DESC
      LIMIT $4`,
     [projectId, from, to, limit]
@@ -164,10 +168,19 @@ export async function getOrdersList(db, projectId, { from = null, to = null, lim
   return orders.map((o) => {
     const evs = eventsByOrder.get(o.order_id) || [];
     const stageSeconds = {};
+    const stageCalendarSeconds = {};
+    const slaStates = {};
+    // prefill SLA states neutral for groups that have limits
+    for (const key of slaMap.keys()) {
+      const gid = Number(key.split(':')[0]);
+      slaStates[gid] = slaStates[gid] || 'neutral';
+    }
     for (const ev of evs) {
       const left = ev.left_at ? new Date(ev.left_at) : now;
       const sec = workingSecondsForInterval(new Date(ev.entered_at), left, ev.status_group_id, workingMap);
+      const calSec = (left - new Date(ev.entered_at)) / 1000;
       stageSeconds[ev.status_group_id] = (stageSeconds[ev.status_group_id] || 0) + sec;
+      stageCalendarSeconds[ev.status_group_id] = (stageCalendarSeconds[ev.status_group_id] || 0) + Math.max(0, calSec);
     }
 
     // cycle detection
@@ -195,14 +208,12 @@ export async function getOrdersList(db, projectId, { from = null, to = null, lim
     }
 
     // SLA states
-    const slaStates = {};
     Object.entries(stageSeconds).forEach(([gid, seconds]) => {
       const limit = getLimit(Number(gid), o.is_urgent);
-      if (!limit) {
-        slaStates[gid] = 'neutral';
-      } else if (seconds > limit * 3600) {
+      if (!limit) return;
+      if (seconds > limit * 3600) {
         slaStates[gid] = 'over';
-      } else if (seconds >= limit * 3600 * 0.8) {
+      } else if (seconds >= limit * 3600 * nearThreshold) {
         slaStates[gid] = 'near';
       } else {
         slaStates[gid] = 'ok';
@@ -215,8 +226,11 @@ export async function getOrdersList(db, projectId, { from = null, to = null, lim
       last_status_id: o.last_status_id,
       last_status_group_id: o.last_status_group_id,
       last_changed_at: o.last_changed_at,
+      order_created_at: o.order_created_at,
       is_urgent: o.is_urgent,
+      urgent_rule: o.urgent_rule,
       stage_seconds: stageSeconds,
+      stage_calendar_seconds: stageCalendarSeconds,
       sla_states: slaStates,
       start_at: startAt,
       end_at: endAt,
@@ -227,10 +241,26 @@ export async function getOrdersList(db, projectId, { from = null, to = null, lim
 
 export async function getOrderTimeline(db, projectId, orderId) {
   const res = await db.query(timelineSql, [projectId, orderId]);
-  return res.rows.map((r) => ({
-    status_id: r.status_id,
-    status_group_id: r.status_group_id,
-    entered_at: r.entered_at,
-    left_at: r.left_at
-  }));
+  const whRes = await db.query(
+    `SELECT group_id, weekday, ranges
+     FROM working_hours
+     WHERE project_id = $1`,
+    [projectId]
+  );
+  const workingMap = buildWorkingMap(whRes.rows);
+  const now = new Date();
+  return res.rows.map((r) => {
+    const entered = new Date(r.entered_at);
+    const left = r.left_at ? new Date(r.left_at) : now;
+    const workingSec = workingSecondsForInterval(entered, left, r.status_group_id, workingMap);
+    const calendarSec = (left - entered) / 1000;
+    return {
+      status_id: r.status_id,
+      status_group_id: r.status_group_id,
+      entered_at: r.entered_at,
+      left_at: r.left_at,
+      working_seconds: workingSec,
+      calendar_seconds: calendarSec
+    };
+  });
 }

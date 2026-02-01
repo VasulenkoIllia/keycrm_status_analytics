@@ -12,6 +12,7 @@
     "db:up": "docker compose up -d db redis",
     "db:down": "docker compose down",
     "db:migrate": "node scripts/run-migrations.js",
+    "db:clear:orders": "node scripts/clear-orders.js",
     "seed:custom": "node scripts/seed-custom.js custom-gifts",
     "server": "cd server && npm run dev",
     "frontend": "npm run dev"

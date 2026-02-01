@@ -10,6 +10,12 @@ const FilterBar = ({ filters, onChange, onSubmit }) => {
     onChange({ ...filters, [key]: event.target.value });
   };
 
+  const slaButtons = [
+    { key: 'ok', label: 'SLA OK', color: 'success' },
+    { key: 'near', label: 'SLA Near', color: 'warning' },
+    { key: 'over', label: 'SLA Over', color: 'error' }
+  ];
+
   return (
     <Box
       display="flex"
@@ -30,7 +36,7 @@ const FilterBar = ({ filters, onChange, onSubmit }) => {
               size: 'small',
               sx: { minWidth: 150 }
             },
-            actionBar: { actions: ['today', 'clear'] }
+            actionBar: { actions: ['clear'] }
           }}
         />
         <DatePicker
@@ -45,7 +51,7 @@ const FilterBar = ({ filters, onChange, onSubmit }) => {
               size: 'small',
               sx: { minWidth: 150 }
             },
-            actionBar: { actions: ['today', 'clear'] }
+            actionBar: { actions: ['clear'] }
           }}
         />
       </LocalizationProvider>
@@ -81,8 +87,28 @@ const FilterBar = ({ filters, onChange, onSubmit }) => {
           label="Протерміновані"
           onClick={() => onChange({ ...filters, onlyOver: !filters.onlyOver })}
         />
+        {slaButtons.map((btn) => (
+          <Chip
+            key={btn.key}
+            clickable
+            variant={filters.slaState === btn.key ? 'filled' : 'outlined'}
+            color={btn.color}
+            label={btn.label}
+            onClick={() =>
+              onChange({ ...filters, slaState: filters.slaState === btn.key ? '' : btn.key })
+            }
+          />
+        ))}
       </Stack>
-      <Button variant="outlined" color="primary" onClick={() => onChange({ from: '', to: '', query: '' })}>Скинути</Button>
+      <Button
+        variant="outlined"
+        color="primary"
+        onClick={() =>
+          onChange({ from: '', to: '', query: '', onlyUrgent: false, onlyOver: false, slaState: '' })
+        }
+      >
+        Скинути
+      </Button>
       <Button variant="contained" color="primary" onClick={onSubmit}>Застосувати</Button>
     </Box>
   );

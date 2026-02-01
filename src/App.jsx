@@ -6,8 +6,10 @@ import OrderCard from './components/OrderCard';
 import TimelineModal from './components/TimelineModal';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import SettingsPanel from './components/SettingsPanel';
-import { fetchOrders, fetchTimeline, fetchDicts, openOrdersStream, setApiToken, login, fetchSettingsSLA } from './api/client';
+import { fetchOrders, fetchTimeline, fetchDicts, openOrdersStream, setApiToken, login, fetchSettingsSLA, saveOrderOverride } from './api/client';
 import { STAGE_LABELS as MOCK_STAGE_LABELS, STAGE_LIMITS_HOURS, mockOrders, STATUS_BY_STAGE } from './data/mockOrders';
+import { formatDuration } from './utils/time';
+import dayjs from 'dayjs';
 
 const PROJECTS = [
   { id: 1, name: 'custom-gifts' },
@@ -20,7 +22,8 @@ const App = () => {
     to: '',
     query: '',
     onlyUrgent: false,
-    onlyOver: false
+    onlyOver: false,
+    slaState: ''
   });
   const [projectId, setProjectId] = useState(null);
   const [apiToken, setToken] = useState(() => localStorage.getItem('apiToken') || '');
@@ -32,6 +35,7 @@ const App = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [slaNormal, setSlaNormal] = useState({ 1: 8, 2: 24, 3: 24, 4: 12 });
   const [slaUrgent, setSlaUrgent] = useState({ 1: 8, 2: 16, 3: 16, 4: 8 });
+  const [nearThreshold, setNearThreshold] = useState(0.8);
   const [demoMode, setDemoMode] = useState(false);
 
   const groupName = (groupId) =>
@@ -73,6 +77,12 @@ const App = () => {
     // orders
     const ordersMapped = mockOrders.map((m) => {
       const stageSeconds = {};
+      const slaStates = {};
+      // prefilling SLA states with neutral where limits exist
+      Object.entries(DEMO_STAGE_MAP).forEach(([, gid]) => {
+        const limit = urgent ? slaUrgent[gid] : slaNormal[gid];
+        if (limit) slaStates[gid] = 'neutral';
+      });
       Object.entries(m.stageTimes).forEach(([stageKey, sec]) => {
         const gid = DEMO_STAGE_MAP[stageKey];
         if (gid) stageSeconds[gid] = sec;
@@ -80,11 +90,10 @@ const App = () => {
       const lastStage = m.timeline?.find((t) => !t.leftAt)?.stage || m.timeline?.slice(-1)[0]?.stage || 'new';
       const lastStatusName = m.timeline?.find((t) => !t.leftAt)?.status || m.currentStatus || 'Статус';
       const statusId = statuses.find((s) => s.name === lastStatusName)?.status_id || 0;
-      const slaStates = {};
       Object.entries(stageSeconds).forEach(([gid, seconds]) => {
         const limit = normal[gid];
-        if (!limit) slaStates[gid] = 'neutral';
-        else if (seconds > limit * 3600) slaStates[gid] = 'over';
+        if (!limit) return;
+        if (seconds > limit * 3600) slaStates[gid] = 'over';
         else if (seconds >= limit * 3600 * 0.8) slaStates[gid] = 'near';
         else slaStates[gid] = 'ok';
       });
@@ -126,9 +135,14 @@ const App = () => {
       return;
     }
     if (!projectId) return;
+    const params = { ...filters };
+    if (applyFilters) {
+      params.from = filters.from ? dayjs(filters.from).startOf('day').toISOString() : '';
+      params.to = filters.to ? dayjs(filters.to).endOf('day').toISOString() : '';
+    }
     const [d, o, sla] = await Promise.all([
       fetchDicts(projectId),
-      fetchOrders(projectId, applyFilters ? filters : {}),
+      fetchOrders(projectId, applyFilters ? params : {}),
       fetchSettingsSLA(projectId)
     ]);
     setDicts(d);
@@ -141,6 +155,7 @@ const App = () => {
     });
     setSlaNormal(normal);
     setSlaUrgent(urgent);
+    setNearThreshold(sla.near_threshold || 0.8);
   };
 
   // Проставити токен у клієнт при зміні стейту
@@ -187,8 +202,18 @@ const App = () => {
 
   const filteredOrders = useMemo(() => {
     const q = filters.query.trim();
-    const fromTs = filters.from ? new Date(`${filters.from}T00:00:00Z`).getTime() : null;
-    const toTs = filters.to ? new Date(`${filters.to}T23:59:59Z`).getTime() : null; // end of day UTC
+    const fromTs = filters.from ? dayjs(filters.from).startOf('day').valueOf() : null;
+    const toTs = filters.to ? dayjs(filters.to).endOf('day').valueOf() : null;
+
+    const getOrderSlaState = (o) => {
+      if (!o.sla_states) return 'neutral';
+      const values = Object.values(o.sla_states);
+      if (values.some((s) => s === 'over')) return 'over';
+      if (values.some((s) => s === 'near')) return 'near';
+      if (values.some((s) => s === 'ok')) return 'ok';
+      return 'neutral';
+    };
+
     return orders.filter((o) => {
       if (q && !String(o.order_id).includes(q)) return false;
       if (filters.onlyUrgent && !o.is_urgent) return false;
@@ -196,9 +221,13 @@ const App = () => {
         const hasOver = o.sla_states && Object.values(o.sla_states).some((s) => s === 'over');
         if (!hasOver) return false;
       }
-      const startedAt = o.started_at ? new Date(o.started_at).getTime() : null;
-      const fallbackDate = o.last_changed_at ? new Date(o.last_changed_at).getTime() : null;
-      const dateTs = startedAt ?? fallbackDate;
+      if (filters.slaState) {
+        const state = getOrderSlaState(o);
+        if (state !== filters.slaState) return false;
+      }
+      const createdAtTs = o.order_created_at ? new Date(o.order_created_at).getTime() : null;
+      const fallbackDate = o.started_at ? new Date(o.started_at).getTime() : o.last_changed_at ? new Date(o.last_changed_at).getTime() : null;
+      const dateTs = createdAtTs ?? fallbackDate;
       if (fromTs !== null) {
         if (dateTs === null) return false;
         if (dateTs < fromTs) return false;
@@ -243,6 +272,19 @@ const App = () => {
     });
     return base;
   }, [dicts.groups]);
+
+  const handleToggleUrgent = async (order) => {
+    if (demoMode) return;
+    try {
+      await saveOrderOverride(projectId, order.order_id || order.id, {
+        is_urgent_override: !order.isUrgent
+      });
+      await loadData(false);
+    } catch (e) {
+      console.error(e);
+      alert('Не вдалося змінити терміновість');
+    }
+  };
 
   if (!apiToken) {
     return (
@@ -341,11 +383,7 @@ const App = () => {
           {Object.entries(stageLimits).map(([gid, limit]) => {
             const urgent = slaUrgent[gid] ?? limit;
             const label = stageLabels[gid] || `Група ${gid}`;
-            const fmt = (v) => {
-              const h = Math.floor(v || 0);
-              const m = Math.round(((v || 0) - h) * 60);
-              return `${h}:${String(m).padStart(2, '0')}`;
-            };
+    const fmt = (v) => formatDuration((v || 0) * 3600);
             return (
               <Box
                 key={gid}
@@ -436,10 +474,13 @@ const App = () => {
             statuses={dicts.statuses}
             slaNormal={slaNormal}
             slaUrgent={slaUrgent}
-            onSlaSaved={(normal, urgent) => {
+            nearThreshold={nearThreshold}
+            onSlaSaved={(normal, urgent, t) => {
               setSlaNormal(normal);
               setSlaUrgent(urgent);
+              if (t) setNearThreshold(t);
             }}
+            onNearChange={(t) => setNearThreshold(t)}
             onCycleSaved={() => loadData(false)}
           />
         </DialogContent>
@@ -461,14 +502,17 @@ const App = () => {
                 order={{
                   id: order.order_id,
                   currentStatus: statusName(order.last_status_id),
-                  createdAt: order.started_at || order.last_changed_at,
+                  createdAt: order.order_created_at || order.started_at || order.last_changed_at,
                   updatedAt: order.last_changed_at,
                   stageTimes: order.stage_seconds || {},
-                  isUrgent: order.is_urgent
+                  isUrgent: order.is_urgent,
+                  urgentRule: order.urgent_rule
                 }}
                 stageLabels={stageLabels}
-                stageLimits={stageLimits}
+                stageLimits={order.is_urgent ? slaUrgent : stageLimits}
+                nearThreshold={nearThreshold}
                 onOpenTimeline={() => handleOpenTimeline(order)}
+                onToggleUrgent={handleToggleUrgent}
               />
             </Grid>
           ))}

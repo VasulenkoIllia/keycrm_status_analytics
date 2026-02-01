@@ -89,12 +89,12 @@ export async function fetchSettingsSLA(projectId) {
   return res.json();
 }
 
-export async function saveSettingsSLA(projectId, rules) {
+export async function saveSettingsSLA(projectId, payload) {
   const url = new URL('/api/settings/sla', API_BASE);
   const res = await fetch(url, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ project_id: projectId, rules })
+    body: JSON.stringify({ project_id: projectId, ...payload })
   });
   if (!res.ok) throw new Error('Не вдалося зберегти SLA');
   return res.json();

@@ -58,11 +58,12 @@ router.get('/sla', async (req, res) => {
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   try {
     const db = req.app.get('db');
+    const ps = await db.query('SELECT sla_near_threshold FROM project_settings WHERE project_id = $1', [projectId]);
     const sla = await db.query(
       'SELECT project_id, group_id, is_urgent, limit_hours FROM sla_stage_rules WHERE project_id = $1 ORDER BY group_id, is_urgent',
       [projectId]
     );
-    res.json({ project_id: projectId, rules: sla.rows });
+    res.json({ project_id: projectId, near_threshold: Number(ps.rows[0]?.sla_near_threshold) || 0.8, rules: sla.rows });
   } catch (e) {
     req.log.error(e, 'sla get error');
     res.status(500).json({ error: e.message });
@@ -73,9 +74,18 @@ router.put('/sla', async (req, res) => {
   const projectId = Number(req.body.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   const rules = req.body.rules || [];
+  const nearThreshold = req.body.near_threshold;
   try {
     const db = req.app.get('db');
     await db.query('BEGIN');
+    if (nearThreshold !== undefined) {
+      await db.query(
+        `UPDATE project_settings
+         SET sla_near_threshold = $2
+         WHERE project_id = $1`,
+        [projectId, Number(nearThreshold)]
+      );
+    }
     for (const r of rules) {
       await db.query(
         `INSERT INTO sla_stage_rules (project_id, group_id, is_urgent, limit_hours)
@@ -90,7 +100,8 @@ router.put('/sla', async (req, res) => {
       'SELECT project_id, group_id, is_urgent, limit_hours FROM sla_stage_rules WHERE project_id = $1 ORDER BY group_id, is_urgent',
       [projectId]
     );
-    res.json({ project_id: projectId, rules: updated.rows });
+    const ps = await db.query('SELECT sla_near_threshold FROM project_settings WHERE project_id = $1', [projectId]);
+    res.json({ project_id: projectId, near_threshold: Number(ps.rows[0]?.sla_near_threshold) || 0.8, rules: updated.rows });
   } catch (e) {
     await req.app.get('db').query('ROLLBACK');
     req.log.error(e, 'sla update error');
@@ -108,7 +119,23 @@ router.get('/project', async (req, res) => {
       [projectId]
     );
     if (!proj.rows.length) return res.status(404).json({ error: 'project not found' });
-    res.json(proj.rows[0]);
+    let project = proj.rows[0];
+
+    // Автогенерація webhook_url, якщо порожній
+    if (!project.webhook_url) {
+      const base =
+        process.env.PUBLIC_BASE_URL ||
+        (req.headers.origin ? req.headers.origin : req.protocol + '://' + req.get('host'));
+      const normalizedBase = (base || '').replace(/\/$/, '');
+      const autoUrl = `${normalizedBase}/api/webhooks/keycrm?project=${projectId}`;
+      const upd = await db.query(
+        `UPDATE projects SET webhook_url = $2, updated_at = NOW() WHERE id = $1 RETURNING webhook_url`,
+        [projectId, autoUrl]
+      );
+      project = { ...project, webhook_url: upd.rows[0].webhook_url };
+    }
+
+    res.json(project);
   } catch (e) {
     req.log.error(e, 'project settings get error');
     res.status(500).json({ error: e.message });
@@ -162,6 +189,8 @@ router.get('/urgent-rules', async (req, res) => {
   }
 });
 
+import { recomputeUrgentForProject } from '../services/urgentRules.js';
+
 router.put('/urgent-rules', async (req, res) => {
   const projectId = Number(req.body.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
@@ -187,6 +216,8 @@ router.put('/urgent-rules', async (req, res) => {
        FROM urgent_rules WHERE project_id = $1 ORDER BY id ASC`,
       [projectId]
     );
+    // Recalculate existing orders to відобразити нові назви/правила
+    await recomputeUrgentForProject(db, projectId);
     res.json({ project_id: projectId, rules: updated.rows });
   } catch (e) {
     await req.app.get('db').query('ROLLBACK');
