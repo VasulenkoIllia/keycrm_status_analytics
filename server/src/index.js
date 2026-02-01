@@ -16,8 +16,51 @@ import { apiAuth, loginHandler } from './middleware/auth.js';
 dotenv.config({ path: '../.env' });
 
 const app = express();
-const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
-app.use(pinoHttp({ logger }));
+let transport;
+if (process.env.NODE_ENV === 'development') {
+  try {
+    transport = pino.transport({
+      target: 'pino-pretty',
+      options: {
+        colorize: true,
+        translateTime: 'SYS:standard',
+        ignore: 'pid,hostname'
+      }
+    });
+  } catch (e) {
+    console.warn('pino-pretty not installed; falling back to JSON logs');
+  }
+}
+
+const logger = pino(
+  {
+    level: process.env.LOG_LEVEL || 'info',
+    base: undefined
+  },
+  transport
+);
+
+app.use(pinoHttp({
+  logger,
+  customLogLevel: (req, res, err) => {
+    if (req.method === 'OPTIONS') return 'debug';
+    if (err || res.statusCode >= 500) return 'error';
+    if (res.statusCode >= 400) return 'warn';
+    return 'info';
+  },
+  serializers: {
+    req(req) {
+      return { id: req.id, method: req.method, url: req.url, query: req.query, params: req.params };
+    },
+    res(res) {
+      return { statusCode: res.statusCode };
+    },
+    err: pino.stdSerializers.err
+  },
+  customSuccessMessage: (req, res) => `${req.method} ${req.url} -> ${res.statusCode}`,
+  customErrorMessage: (req, res, err) => `${req.method} ${req.url} -> ${res.statusCode} ${err ? err.message : ''}`.trim(),
+  autoLogging: { ignorePaths: ['/health'] }
+}));
 
 app.use(helmet());
 app.use(cors({

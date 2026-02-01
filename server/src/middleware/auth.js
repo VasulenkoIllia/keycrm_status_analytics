@@ -39,10 +39,27 @@ export function apiAuth(req, res, next) {
 }
 
 export function webhookAuth(req, res, next) {
-  const token = process.env.WEBHOOK_TOKEN;
-  if (!token) return next();
+  const envToken = process.env.WEBHOOK_TOKEN;
   const queryToken = req.query.token;
   const header = req.headers['x-webhook-token'] || '';
-  if ((queryToken && queryToken === token) || (header && header === token)) return next();
-  return res.status(401).json({ error: 'unauthorized' });
+  const provided = queryToken || header;
+
+  // If env token set — require exact match
+  if (envToken) {
+    if (provided && provided === envToken) return next();
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  // No env token: try project-specific token if present
+  const projectId = Number(req.query.project || req.body?.project);
+  if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project is required' });
+  const db = req.app.get('db');
+  db.query('SELECT webhook_token FROM projects WHERE id = $1', [projectId])
+    .then((r) => {
+      const projToken = r.rows[0]?.webhook_token || null;
+      if (!projToken) return next(); // no token set => allow
+      if (provided && provided === projToken) return next();
+      return res.status(401).json({ error: 'unauthorized' });
+    })
+    .catch(() => res.status(500).json({ error: 'internal' }));
 }

@@ -1,4 +1,8 @@
 import express from 'express';
+import { createClient } from 'redis';
+import dotenv from 'dotenv';
+
+dotenv.config({ path: '../.env' });
 
 const router = express.Router();
 
@@ -7,8 +11,10 @@ router.get('/orders', async (req, res) => {
   if (!Number.isInteger(projectId)) {
     return res.status(400).end('project_id is required');
   }
-
-  const redisSub = req.app.get('redisSub');
+  // Per-connection subscriber to avoid conflicts between SSE clients
+  const redisUrl = `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`;
+  const redisSub = createClient({ url: redisUrl });
+  await redisSub.connect();
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -22,6 +28,10 @@ router.get('/orders', async (req, res) => {
     try {
       const payload = JSON.parse(message);
       if (payload.project_id !== projectId) return;
+      if (process.env.LOG_LEVEL === 'debug') {
+        // eslint-disable-next-line no-console
+        console.log('SSE push', payload);
+      }
       res.write(`event: ${payload.type || 'order_updated'}\n`);
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
     } catch (e) {
@@ -35,6 +45,7 @@ router.get('/orders', async (req, res) => {
     clearInterval(heartbeat);
     try {
       await redisSub.unsubscribe('orders-stream', handler);
+      await redisSub.quit();
     } catch (e) {
       // ignore
     }

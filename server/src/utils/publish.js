@@ -8,7 +8,14 @@ export async function publishOrderUpdate(projectId, orderId, payload = {}, redis
   };
 
   if (redisPub) {
-    return redisPub.publish('orders-stream', JSON.stringify(msg));
+    try {
+      await redisPub.publish('orders-stream', JSON.stringify(msg));
+    } catch (e) {
+      // fallback: log and ignore
+      // eslint-disable-next-line no-console
+      if (process.env.LOG_LEVEL === 'debug') console.error('publishOrderUpdate redis error', e.message);
+    }
+    return;
   }
 
   // Fallback: no redis passed; do nothing

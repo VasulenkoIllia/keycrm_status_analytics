@@ -1,7 +1,9 @@
 import React from 'react';
-import { Box, TextField, InputAdornment, IconButton, Button } from '@mui/material';
+import { Box, TextField, InputAdornment, IconButton, Button, Stack, Chip } from '@mui/material';
+import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import SearchIcon from '@mui/icons-material/Search';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import dayjs from 'dayjs';
 
 const FilterBar = ({ filters, onChange, onSubmit }) => {
   const handleChange = (key) => (event) => {
@@ -15,36 +17,38 @@ const FilterBar = ({ filters, onChange, onSubmit }) => {
       alignItems="center"
       sx={{ mb: 3, flexWrap: 'wrap' }}
     >
-      <TextField
-        type="date"
-        label="Від"
-        size="small"
-        InputLabelProps={{ shrink: true }}
-        value={filters.from}
-        onChange={handleChange('from')}
-        InputProps={{
-          endAdornment: (
-            <InputAdornment position="end">
-              <CalendarTodayIcon fontSize="small" />
-            </InputAdornment>
-          )
-        }}
-      />
-      <TextField
-        type="date"
-        label="До"
-        size="small"
-        InputLabelProps={{ shrink: true }}
-        value={filters.to}
-        onChange={handleChange('to')}
-        InputProps={{
-          endAdornment: (
-            <InputAdornment position="end">
-              <CalendarTodayIcon fontSize="small" />
-            </InputAdornment>
-          )
-        }}
-      />
+      <LocalizationProvider dateAdapter={AdapterDayjs}>
+        <DatePicker
+          label="Від"
+          value={filters.from ? dayjs(filters.from) : null}
+          onChange={(val) => {
+            onChange({ ...filters, from: val ? val.format('YYYY-MM-DD') : '' });
+          }}
+          format="DD.MM.YYYY"
+          slotProps={{
+            textField: {
+              size: 'small',
+              sx: { minWidth: 150 }
+            },
+            actionBar: { actions: ['today', 'clear'] }
+          }}
+        />
+        <DatePicker
+          label="До"
+          value={filters.to ? dayjs(filters.to) : null}
+          onChange={(val) => {
+            onChange({ ...filters, to: val ? val.format('YYYY-MM-DD') : '' });
+          }}
+          format="DD.MM.YYYY"
+          slotProps={{
+            textField: {
+              size: 'small',
+              sx: { minWidth: 150 }
+            },
+            actionBar: { actions: ['today', 'clear'] }
+          }}
+        />
+      </LocalizationProvider>
       <TextField
         size="small"
         label="Пошук за номером"
@@ -62,6 +66,22 @@ const FilterBar = ({ filters, onChange, onSubmit }) => {
         sx={{ minWidth: 220 }}
       />
       <Box flex={1} />
+      <Stack direction="row" spacing={1} alignItems="center">
+        <Chip
+          clickable
+          variant={filters.onlyUrgent ? 'filled' : 'outlined'}
+          color="error"
+          label="Термінові"
+          onClick={() => onChange({ ...filters, onlyUrgent: !filters.onlyUrgent })}
+        />
+        <Chip
+          clickable
+          variant={filters.onlyOver ? 'filled' : 'outlined'}
+          color="warning"
+          label="Протерміновані"
+          onClick={() => onChange({ ...filters, onlyOver: !filters.onlyOver })}
+        />
+      </Stack>
       <Button variant="outlined" color="primary" onClick={() => onChange({ from: '', to: '', query: '' })}>Скинути</Button>
       <Button variant="contained" color="primary" onClick={onSubmit}>Застосувати</Button>
     </Box>

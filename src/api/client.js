@@ -58,7 +58,7 @@ export function openOrdersStream(projectId, onMessage) {
   url.searchParams.set('project_id', projectId);
   if (API_TOKEN) url.searchParams.set('token', API_TOKEN);
   const es = new EventSource(url.toString());
-  es.onmessage = (evt) => {
+  const handler = (evt) => {
     try {
       const data = JSON.parse(evt.data);
       onMessage?.(data);
@@ -66,6 +66,10 @@ export function openOrdersStream(projectId, onMessage) {
       // ignore
     }
   };
+  es.onmessage = handler; // default event
+  es.addEventListener('order_updated', handler);
+  es.addEventListener('invalidate', handler);
+  es.addEventListener('message', handler);
   return es;
 }
 
@@ -104,5 +108,81 @@ export async function saveSettingsCycle(projectId, payload) {
     body: JSON.stringify({ project_id: projectId, ...payload })
   });
   if (!res.ok) throw new Error('Не вдалося зберегти цикл');
+  return res.json();
+}
+
+export async function fetchWorkingHours(projectId) {
+  const url = new URL('/api/settings/working-hours', API_BASE);
+  url.searchParams.set('project_id', projectId);
+  const res = await fetch(url, { headers: { ...authHeaders() } });
+  if (!res.ok) throw new Error('Не вдалося отримати робочі години');
+  return res.json();
+}
+
+export async function saveWorkingHours(projectId, rules) {
+  const url = new URL('/api/settings/working-hours', API_BASE);
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ project_id: projectId, rules })
+  });
+  if (!res.ok) throw new Error('Не вдалося зберегти робочі години');
+  return res.json();
+}
+
+export async function fetchProjectSettings(projectId) {
+  const url = new URL('/api/settings/project', API_BASE);
+  url.searchParams.set('project_id', projectId);
+  const res = await fetch(url, { headers: { ...authHeaders() } });
+  if (!res.ok) throw new Error('Не вдалося отримати налаштування проєкту');
+  return res.json();
+}
+
+export async function saveProjectSettings(projectId, payload) {
+  const url = new URL('/api/settings/project', API_BASE);
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ project_id: projectId, ...payload })
+  });
+  if (!res.ok) throw new Error('Не вдалося зберегти налаштування проєкту');
+  return res.json();
+}
+
+export async function fetchUrgentRules(projectId) {
+  const url = new URL('/api/settings/urgent-rules', API_BASE);
+  url.searchParams.set('project_id', projectId);
+  const res = await fetch(url, { headers: { ...authHeaders() } });
+  if (!res.ok) throw new Error('Не вдалося отримати urgent правила');
+  return res.json();
+}
+
+export async function saveUrgentRules(projectId, rules) {
+  const url = new URL('/api/settings/urgent-rules', API_BASE);
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ project_id: projectId, rules })
+  });
+  if (!res.ok) throw new Error('Не вдалося зберегти urgent правила');
+  return res.json();
+}
+
+export async function fetchOrderOverride(projectId, orderId) {
+  const url = new URL(`/api/orders/${orderId}/override`, API_BASE);
+  url.searchParams.set('project_id', projectId);
+  const res = await fetch(url, { headers: { ...authHeaders() } });
+  if (!res.ok) throw new Error('Не вдалося отримати override');
+  return res.json();
+}
+
+export async function saveOrderOverride(projectId, orderId, payload) {
+  const url = new URL(`/api/orders/${orderId}/override`, API_BASE);
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ project_id: projectId, ...payload })
+  });
+  if (!res.ok) throw new Error('Не вдалося зберегти override');
   return res.json();
 }

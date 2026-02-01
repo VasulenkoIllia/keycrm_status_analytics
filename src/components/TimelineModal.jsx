@@ -8,19 +8,18 @@ import {
   Chip,
   Stack
 } from '@mui/material';
-import { STAGE_LABELS } from '../data/mockOrders';
 import { fmtDateTime, formatDuration } from '../utils/time';
 
-const stageColor = {
-  new: 'success',
-  approval: 'info',
-  production: 'warning',
-  delivery: 'primary',
-  done: 'success'
+const colorByGroup = {
+  1: 'success',
+  2: 'info',
+  3: 'warning',
+  4: 'primary'
 };
 
 const TimelineModal = ({ open, onClose, order }) => {
   if (!order) return null;
+  const items = order.timeline || [];
   return (
     <Dialog
       open={open}
@@ -34,7 +33,10 @@ const TimelineModal = ({ open, onClose, order }) => {
       </DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          {order.timeline.map((item, idx) => (
+          {items.length === 0 && (
+            <Typography variant="body2" color="text.secondary">Подій не знайдено</Typography>
+          )}
+          {items.map((item, idx) => (
             <Box
               key={idx}
               sx={{
@@ -47,11 +49,11 @@ const TimelineModal = ({ open, onClose, order }) => {
               <Box display="flex" alignItems="center" gap={1} mb={0.5}>
                 <Chip
                   size="small"
-                  color={stageColor[item.stage] || 'default'}
-                  label={STAGE_LABELS[item.stage]}
+                  color={colorByGroup[item.group_id] || 'default'}
+                  label={item.stage || `Група ${item.group_id || ''}`}
                   variant="outlined"
                 />
-                <Typography variant="subtitle2">{item.status}</Typography>
+                <Typography variant="subtitle2">{item.status || 'Статус'}</Typography>
               </Box>
               <Typography variant="body2" sx={{ color: '#9ba4b5' }}>
                 вхід: {fmtDateTime(item.enteredAt)} &nbsp;•&nbsp; вихід: {fmtDateTime(item.leftAt)}

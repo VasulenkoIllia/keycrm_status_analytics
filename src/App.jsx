@@ -7,7 +7,7 @@ import TimelineModal from './components/TimelineModal';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import SettingsPanel from './components/SettingsPanel';
 import { fetchOrders, fetchTimeline, fetchDicts, openOrdersStream, setApiToken, login, fetchSettingsSLA } from './api/client';
-import { STAGE_LABELS as MOCK_STAGE_LABELS } from './data/mockOrders';
+import { STAGE_LABELS as MOCK_STAGE_LABELS, STAGE_LIMITS_HOURS, mockOrders, STATUS_BY_STAGE } from './data/mockOrders';
 
 const PROJECTS = [
   { id: 1, name: 'custom-gifts' },
@@ -18,7 +18,9 @@ const App = () => {
   const [filters, setFilters] = useState({
     from: '',
     to: '',
-    query: ''
+    query: '',
+    onlyUrgent: false,
+    onlyOver: false
   });
   const [projectId, setProjectId] = useState(null);
   const [apiToken, setToken] = useState(() => localStorage.getItem('apiToken') || '');
@@ -30,6 +32,7 @@ const App = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [slaNormal, setSlaNormal] = useState({ 1: 8, 2: 24, 3: 24, 4: 12 });
   const [slaUrgent, setSlaUrgent] = useState({ 1: 8, 2: 16, 3: 16, 4: 8 });
+  const [demoMode, setDemoMode] = useState(false);
 
   const groupName = (groupId) =>
     dicts.groups.find((g) => g.group_id === groupId)?.group_name ||
@@ -41,7 +44,87 @@ const App = () => {
 
   const stageLimits = slaNormal;
 
+  // Demo helpers
+  const DEMO_STAGE_MAP = { new: 1, approval: 2, production: 3, delivery: 4 };
+
+  const buildDemoData = () => {
+    // groups
+    const groups = Object.entries(DEMO_STAGE_MAP).map(([key, gid]) => ({
+      group_id: gid,
+      group_name: MOCK_STAGE_LABELS[key] || `Група ${gid}`
+    }));
+    // statuses
+    let sid = 1;
+    const statuses = [];
+    Object.entries(STATUS_BY_STAGE).forEach(([stageKey, names]) => {
+      const gid = DEMO_STAGE_MAP[stageKey] || null;
+      names.forEach((nm) => {
+        statuses.push({ status_id: sid++, name: nm, group_id: gid, alias: nm, is_active: true });
+      });
+    });
+    // SLA from mock limits
+    const normal = {};
+    Object.entries(STAGE_LIMITS_HOURS).forEach(([stageKey, hours]) => {
+      const gid = DEMO_STAGE_MAP[stageKey];
+      if (gid) normal[gid] = hours;
+    });
+    const urgent = Object.fromEntries(Object.entries(normal).map(([g, h]) => [g, Math.max(1, h * 0.7)]));
+
+    // orders
+    const ordersMapped = mockOrders.map((m) => {
+      const stageSeconds = {};
+      Object.entries(m.stageTimes).forEach(([stageKey, sec]) => {
+        const gid = DEMO_STAGE_MAP[stageKey];
+        if (gid) stageSeconds[gid] = sec;
+      });
+      const lastStage = m.timeline?.find((t) => !t.leftAt)?.stage || m.timeline?.slice(-1)[0]?.stage || 'new';
+      const lastStatusName = m.timeline?.find((t) => !t.leftAt)?.status || m.currentStatus || 'Статус';
+      const statusId = statuses.find((s) => s.name === lastStatusName)?.status_id || 0;
+      const slaStates = {};
+      Object.entries(stageSeconds).forEach(([gid, seconds]) => {
+        const limit = normal[gid];
+        if (!limit) slaStates[gid] = 'neutral';
+        else if (seconds > limit * 3600) slaStates[gid] = 'over';
+        else if (seconds >= limit * 3600 * 0.8) slaStates[gid] = 'near';
+        else slaStates[gid] = 'ok';
+      });
+      const cycleSeconds = Object.values(stageSeconds).reduce((s, v) => s + v, 0);
+      return {
+        project_id: -1,
+        order_id: Number(m.id),
+        last_status_id: statusId,
+        last_status_group_id: DEMO_STAGE_MAP[lastStage] || 1,
+        last_changed_at: m.updatedAt,
+        is_urgent: false,
+        stage_seconds: stageSeconds,
+        sla_states: slaStates,
+        start_at: m.createdAt,
+        end_at: m.updatedAt,
+        cycle_seconds: cycleSeconds,
+        timeline: m.timeline || [],
+        created_raw: m.createdAt,
+        updated_raw: m.updatedAt,
+        status_name: lastStatusName
+      };
+    });
+
+    return {
+      dicts: { groups, statuses },
+      orders: ordersMapped,
+      slaNormal: normal,
+      slaUrgent: urgent
+    };
+  };
+
   const loadData = async (applyFilters = true) => {
+    if (demoMode) {
+      const demo = buildDemoData();
+      setDicts(demo.dicts);
+      setOrders(demo.orders);
+      setSlaNormal(demo.slaNormal);
+      setSlaUrgent(demo.slaUrgent);
+      return;
+    }
     if (!projectId) return;
     const [d, o, sla] = await Promise.all([
       fetchDicts(projectId),
@@ -69,6 +152,8 @@ const App = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const pid = params.get('project');
+    const demo = params.get('demo');
+    if (demo === '1') setDemoMode(true);
     if (pid) setProjectId(Number(pid));
   }, []);
 
@@ -87,6 +172,10 @@ const App = () => {
   }, []);
 
   useEffect(() => {
+    if (demoMode) {
+      loadData().catch(console.error);
+      return undefined;
+    }
     if (!projectId) return undefined;
     loadData().catch(console.error);
     const es = openOrdersStream(projectId, () => {
@@ -94,20 +183,53 @@ const App = () => {
     });
     return () => es.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, filters.from, filters.to, apiToken]);
+  }, [projectId, filters.from, filters.to, apiToken, demoMode]);
 
   const filteredOrders = useMemo(() => {
     const q = filters.query.trim();
-    return orders.filter((o) => (q ? String(o.order_id).includes(q) : true));
-  }, [filters.query, orders]);
+    const fromTs = filters.from ? new Date(`${filters.from}T00:00:00Z`).getTime() : null;
+    const toTs = filters.to ? new Date(`${filters.to}T23:59:59Z`).getTime() : null; // end of day UTC
+    return orders.filter((o) => {
+      if (q && !String(o.order_id).includes(q)) return false;
+      if (filters.onlyUrgent && !o.is_urgent) return false;
+      if (filters.onlyOver) {
+        const hasOver = o.sla_states && Object.values(o.sla_states).some((s) => s === 'over');
+        if (!hasOver) return false;
+      }
+      const startedAt = o.started_at ? new Date(o.started_at).getTime() : null;
+      const fallbackDate = o.last_changed_at ? new Date(o.last_changed_at).getTime() : null;
+      const dateTs = startedAt ?? fallbackDate;
+      if (fromTs !== null) {
+        if (dateTs === null) return false;
+        if (dateTs < fromTs) return false;
+      }
+      if (toTs !== null) {
+        if (dateTs === null) return false;
+        if (dateTs > toTs) return false;
+      }
+      return true;
+    });
+  }, [filters, orders]);
 
   const handleOpenTimeline = async (order) => {
+    if (demoMode) {
+      setTimeline(order.timeline || []);
+      setSelected({ ...order, timeline: order.timeline || [] });
+      return;
+    }
     try {
       const res = await fetchTimeline(projectId, order.order_id);
-      setTimeline(res.timeline || []);
+      const mapped = (res.timeline || []).map((t) => ({
+        stage: stageLabels[t.status_group_id] || `Група ${t.status_group_id}`,
+        status: statusName(t.status_id),
+        enteredAt: t.entered_at,
+        leftAt: t.left_at,
+        group_id: t.status_group_id
+      }));
+      setTimeline(mapped);
       setSelected({
         ...order,
-        timeline: res.timeline || []
+        timeline: mapped
       });
     } catch (e) {
       console.error(e);
@@ -164,7 +286,7 @@ const App = () => {
     );
   }
 
-  if (!projectId) {
+  if (!projectId && !demoMode) {
     return (
       <Container maxWidth="md" sx={{ py: 6, textAlign: 'center' }}>
         <Typography variant="h5" gutterBottom>Оберіть CRM проєкт</Typography>
@@ -184,6 +306,19 @@ const App = () => {
             </Button>
           ))}
         </Stack>
+        <Button
+          sx={{ mt: 2 }}
+          variant="outlined"
+          onClick={() => {
+            setDemoMode(true);
+            const url = new URL(window.location.href);
+            url.searchParams.set('demo', '1');
+            window.history.pushState({ projectId: -1, demo: true }, '', url.toString());
+            loadData().catch(console.error);
+          }}
+        >
+          Демо дані (моки)
+        </Button>
         <Button sx={{ mt: 2 }} onClick={() => { localStorage.removeItem('apiToken'); setToken(''); }}>
           Вийти
         </Button>
@@ -196,7 +331,7 @@ const App = () => {
       <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between" mb={3}>
         <Box>
           <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>
-            Трекер часу — {PROJECTS.find((p) => p.id === projectId)?.name}
+            Трекер часу — {demoMode ? 'Демо режим' : PROJECTS.find((p) => p.id === projectId)?.name}
           </Typography>
           <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: '100%', display: 'block' }}>
             Ланцюжок: {Object.values(stageLabels).join(' → ')}
@@ -238,19 +373,21 @@ const App = () => {
               </Box>
             );
           })}
-          <Button
-            size="small"
-            variant="text"
-            color="inherit"
-            onClick={() => {
-              setProjectId(null);
-              const url = new URL(window.location.href);
-              url.searchParams.delete('project');
-              window.history.pushState({ projectId: null }, '', url.toString());
-            }}
-          >
-            Змінити CRM
-          </Button>
+          {!demoMode && (
+            <Button
+              size="small"
+              variant="text"
+              color="inherit"
+              onClick={() => {
+                setProjectId(null);
+                const url = new URL(window.location.href);
+                url.searchParams.delete('project');
+                window.history.pushState({ projectId: null }, '', url.toString());
+              }}
+            >
+              Змінити CRM
+            </Button>
+          )}
           <Button
             size="small"
             variant="outlined"
@@ -259,13 +396,18 @@ const App = () => {
               localStorage.removeItem('apiToken');
               setToken('');
               setProjectId(null);
+              setDemoMode(false);
               const url = new URL(window.location.href);
               url.searchParams.delete('project');
+              url.searchParams.delete('demo');
               window.history.pushState({ projectId: null }, '', url.toString());
             }}
           >
             Вийти
           </Button>
+          {demoMode && (
+            <Chip label="Демо дані" color="info" variant="outlined" />
+          )}
         </Stack>
       </Box>
 
@@ -307,27 +449,37 @@ const App = () => {
 
       <FilterBar filters={filters} onChange={setFilters} onSubmit={() => loadData(true)} />
 
-      <Grid container spacing={2}>
-        {filteredOrders.map((order) => (
-          <Grid item xs={12} md={6} key={order.id}>
-            <OrderCard
-              order={{
-                id: order.order_id,
-                currentStatus: statusName(order.last_status_id),
-                createdAt: order.started_at || order.last_changed_at,
-                updatedAt: order.last_changed_at,
-                stageTimes: order.stage_seconds || {},
-                isUrgent: order.is_urgent
-              }}
-              stageLabels={stageLabels}
-              stageLimits={stageLimits}
-              onOpenTimeline={() => handleOpenTimeline(order)}
-            />
-          </Grid>
-        ))}
-      </Grid>
+      {filteredOrders.length === 0 ? (
+        <Typography variant="body2" color="text.secondary">
+          За вибраними фільтрами замовлень немає.
+        </Typography>
+      ) : (
+        <Grid container spacing={2}>
+          {filteredOrders.map((order) => (
+            <Grid item xs={12} md={6} key={order.order_id || order.id}>
+              <OrderCard
+                order={{
+                  id: order.order_id,
+                  currentStatus: statusName(order.last_status_id),
+                  createdAt: order.started_at || order.last_changed_at,
+                  updatedAt: order.last_changed_at,
+                  stageTimes: order.stage_seconds || {},
+                  isUrgent: order.is_urgent
+                }}
+                stageLabels={stageLabels}
+                stageLimits={stageLimits}
+                onOpenTimeline={() => handleOpenTimeline(order)}
+              />
+            </Grid>
+          ))}
+        </Grid>
+      )}
 
-      <TimelineModal open={!!selected} order={{ ...selected, timeline }} onClose={() => setSelected(null)} />
+      <TimelineModal
+        open={!!selected}
+        order={{ ...selected, timeline }}
+        onClose={() => setSelected(null)}
+      />
     </Container>
   );
 };
