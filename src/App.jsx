@@ -190,12 +190,9 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (demoMode) {
-      loadData().catch(console.error);
-      return undefined;
-    }
     if (!projectId) return undefined;
     loadData().catch(console.error);
+    if (demoMode) return undefined;
     const es = openOrdersStream(projectId, () => {
       loadData().catch(console.error);
     });
