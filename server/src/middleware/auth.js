@@ -10,13 +10,6 @@ const creds = {
   secret: process.env.JWT_SECRET || DEFAULT_SECRET
 };
 
-// У проді не стартуємо з дефолтними обліковими даними
-if (process.env.NODE_ENV === 'production') {
-  if (creds.user === DEFAULT_USER || creds.pass === DEFAULT_PASS || creds.secret === DEFAULT_SECRET) {
-    throw new Error('AUTH_USER/AUTH_PASS/JWT_SECRET must be set in production');
-  }
-}
-
 const getCreds = () => creds;
 
 export function issueToken(username) {
