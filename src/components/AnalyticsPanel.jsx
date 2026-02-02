@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, Grid, Typography, Stack, Chip, LinearProgress, Box } from '@mui/material';
 import { formatDuration } from '../utils/time';
 
-const fmtHours = (sec) => (sec ? formatDuration(sec) : '—');
+const fmtHours = (sec = 0) => formatDuration(sec || 0);
 
 export const AnalyticsPanel = ({ orders = [], stageLabels = {} }) => {
   if (!orders.length) return null;

@@ -34,14 +34,17 @@ docker compose -f docker-compose.deploy.yml run --rm backend node scripts/run-mi
 
 ### Traefik
 - Фронт: `https://orderstatus.workflo.space`
-- API:   `https://orderstatus.workflo.space/api` (stripPrefix /api)
+- API:   `https://orderstatus.workflo.space/api` (без stripPrefix)
 - Сертифікати: resolver `cf`, entrypoint `websecure`
 
 ## Webhook URL-и
-- Єдиний endpoint для вебхука KeyCRM:  
-  `https://orderstatus.workflo.space/api/webhooks/keycrm?project={PROJECT_ID}`
-- Авторизація вебхука: заголовок `x-webhook-token: <project.webhook_token>` (зберігається у налаштуваннях проєкту).
-- Важливо: `project_id` обов'язково в query; для кожного проєкту свій токен/URL.
+- Єдиний endpoint для вебхука KeyCRM (доступний без Bearer):  
+  `https://orderstatus.workflo.space/api/webhooks/keycrm?project={PROJECT_ID}&token=<webhook_token>`
+- Авторизація вебхука: token у query або заголовок `x-webhook-token`.
+- Перевірка токена:
+  1) якщо `WEBHOOK_TOKEN` env і збіг — прохід;
+  2) інакше перевіряється `projects.webhook_token` для `project_id`; якщо поле пусте — прохід, якщо задане — має збігтися.
+- `project` у query обов'язковий.
 
 ## Структура даних
 - Усі налаштування та дані зберігаються в Postgres, Redis використовується лише як брокер подій (втрата ключів не критична — система самовідновиться, максимум потрібно рефрешнути UI).
