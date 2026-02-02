@@ -1,11 +1,11 @@
 import React from 'react';
-import { Box, TextField, InputAdornment, IconButton, Button, Stack, Chip } from '@mui/material';
+import { Box, TextField, InputAdornment, IconButton, Button, Stack, Chip, MenuItem } from '@mui/material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import SearchIcon from '@mui/icons-material/Search';
 import dayjs from 'dayjs';
 
-const FilterBar = ({ filters, onChange, onSubmit }) => {
+const FilterBar = ({ filters, onChange, onSubmit, stageOptions = [], statusOptions = [] }) => {
   const handleChange = (key) => (event) => {
     onChange({ ...filters, [key]: event.target.value });
   };
@@ -26,7 +26,7 @@ const FilterBar = ({ filters, onChange, onSubmit }) => {
       <LocalizationProvider dateAdapter={AdapterDayjs}>
         <DatePicker
           label="Від"
-          value={filters.from ? dayjs(filters.from) : null}
+          value={filters.from ? dayjs(filters.from) : dayjs()}
           onChange={(val) => {
             onChange({ ...filters, from: val ? val.format('YYYY-MM-DD') : '' });
           }}
@@ -36,12 +36,12 @@ const FilterBar = ({ filters, onChange, onSubmit }) => {
               size: 'small',
               sx: { minWidth: 150 }
             },
-            actionBar: { actions: ['clear'] }
+            actionBar: { actions: ['clear', 'today'] }
           }}
         />
         <DatePicker
           label="До"
-          value={filters.to ? dayjs(filters.to) : null}
+          value={filters.to ? dayjs(filters.to) : dayjs()}
           onChange={(val) => {
             onChange({ ...filters, to: val ? val.format('YYYY-MM-DD') : '' });
           }}
@@ -51,7 +51,7 @@ const FilterBar = ({ filters, onChange, onSubmit }) => {
               size: 'small',
               sx: { minWidth: 150 }
             },
-            actionBar: { actions: ['clear'] }
+            actionBar: { actions: ['clear', 'today'] }
           }}
         />
       </LocalizationProvider>
@@ -72,6 +72,59 @@ const FilterBar = ({ filters, onChange, onSubmit }) => {
         sx={{ minWidth: 220 }}
       />
       <Box flex={1} />
+      <TextField
+        select
+        size="small"
+        label="Етап"
+        value={filters.stageGroup}
+        onChange={handleChange('stageGroup')}
+        sx={{ minWidth: 160 }}
+      >
+        <MenuItem value="">Усі етапи</MenuItem>
+        {stageOptions.map((s) => (
+          <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+        ))}
+      </TextField>
+      <TextField
+        select
+        size="small"
+        label="Статус"
+        value={filters.statusId}
+        onChange={handleChange('statusId')}
+        sx={{ minWidth: 200 }}
+      >
+        <MenuItem value="">Усі статуси</MenuItem>
+        {statusOptions
+          .filter((s) => !filters.stageGroup || String(s.group_id) === String(filters.stageGroup))
+          .map((s) => (
+            <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+          ))}
+      </TextField>
+      <TextField
+        select
+        size="small"
+        label="Сортування"
+        value={filters.sort}
+        onChange={handleChange('sort')}
+        sx={{ minWidth: 220 }}
+      >
+        <MenuItem value="duration_desc">Тривалість: довгі → короткі</MenuItem>
+        <MenuItem value="duration_asc">Тривалість: короткі → довгі</MenuItem>
+        <MenuItem value="date_desc">Дата створення: новіші → старші</MenuItem>
+        <MenuItem value="date_asc">Дата створення: старші → новіші</MenuItem>
+      </TextField>
+      <TextField
+        select
+        size="small"
+        label="Кількість"
+        value={filters.limit}
+        onChange={handleChange('limit')}
+        sx={{ minWidth: 120 }}
+      >
+        {[10, 20, 50, 100, 200, 500].map((n) => (
+          <MenuItem key={n} value={n}>{n}</MenuItem>
+        ))}
+      </TextField>
       <Stack direction="row" spacing={1} alignItems="center">
         <Chip
           clickable
@@ -104,7 +157,18 @@ const FilterBar = ({ filters, onChange, onSubmit }) => {
         variant="outlined"
         color="primary"
         onClick={() =>
-          onChange({ from: '', to: '', query: '', onlyUrgent: false, onlyOver: false, slaState: '' })
+          onChange({
+            from: '',
+            to: '',
+            query: '',
+            onlyUrgent: false,
+            onlyOver: false,
+            slaState: '',
+            stageGroup: '',
+            statusId: '',
+            sort: 'duration_desc',
+            limit: 50
+          })
         }
       >
         Скинути

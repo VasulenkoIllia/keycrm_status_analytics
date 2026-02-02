@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Box, Container, Grid, Typography, Stack, Chip, Button, TextField, Dialog, DialogTitle, DialogContent, IconButton } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import FilterBar from './components/FilterBar';
@@ -6,6 +6,11 @@ import OrderCard from './components/OrderCard';
 import TimelineModal from './components/TimelineModal';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import SettingsPanel from './components/SettingsPanel';
+import ReportsPanel from './components/ReportsPanel';
+import ProductivityReport from './components/ProductivityReport';
+import CancellationReport from './components/CancellationReport';
+import SuccessReport from './components/SuccessReport';
+import SLAReport from './components/SLAReport';
 import { fetchOrders, fetchTimeline, fetchDicts, openOrdersStream, setApiToken, login, fetchSettingsSLA, saveOrderOverride, fetchProjects } from './api/client';
 import { STAGE_LABELS as MOCK_STAGE_LABELS, STAGE_LIMITS_HOURS, mockOrders, STATUS_BY_STAGE } from './data/mockOrders';
 import { formatDuration } from './utils/time';
@@ -15,12 +20,16 @@ const PROJECTS_STATIC = [];
 
 const App = () => {
   const [filters, setFilters] = useState({
-    from: '',
-    to: '',
+    from: dayjs().format('YYYY-MM-DD'),
+    to: dayjs().format('YYYY-MM-DD'),
     query: '',
     onlyUrgent: false,
     onlyOver: false,
-    slaState: ''
+    slaState: '',
+    stageGroup: '',
+    statusId: '',
+    sort: 'duration_desc', // duration_desc | duration_asc | date_desc | date_asc
+    limit: 50
   });
   const [projectId, setProjectId] = useState(null);
   const [projects, setProjects] = useState([]);
@@ -36,6 +45,10 @@ const App = () => {
   const [nearThreshold, setNearThreshold] = useState(0.8);
   const [demoMode, setDemoMode] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
+  const [view, setView] = useState('dashboard'); // dashboard | reports
+  const [reportTab, setReportTab] = useState('custom'); // custom | productivity | cancellation | success | sla
+  const [reportsOrders, setReportsOrders] = useState([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
 
   const groupName = (groupId) =>
     dicts.groups.find((g) => g.group_id === groupId)?.group_name ||
@@ -141,7 +154,7 @@ const App = () => {
     }
     const [d, o, sla] = await Promise.all([
       fetchDicts(projectId),
-      fetchOrders(projectId, applyFilters ? params : {}),
+      fetchOrders(projectId, applyFilters ? params : { limit: filters.limit || 50 }),
       fetchSettingsSLA(projectId)
     ]);
     setDicts(d);
@@ -156,6 +169,26 @@ const App = () => {
     setSlaUrgent(urgent);
     setNearThreshold(sla.near_threshold || 0.8);
   };
+
+  const fetchReportsData = useCallback(
+    async (fromDate = '', toDate = '') => {
+      if (demoMode || !projectId) return;
+      setReportsLoading(true);
+      try {
+        const params = {};
+        if (fromDate) params.from = dayjs(fromDate).startOf('day').toISOString();
+        if (toDate) params.to = dayjs(toDate).endOf('day').toISOString();
+        params.limit = 5000; // максимально широке вікно для звітів
+        const data = await fetchOrders(projectId, params);
+        setReportsOrders(data);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setReportsLoading(false);
+      }
+    },
+    [projectId, demoMode]
+  );
 
   // Проставити токен у клієнт при зміні стейту
   useEffect(() => {
@@ -226,6 +259,14 @@ const App = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, filters.from, filters.to, apiToken, demoMode]);
 
+  // Скидаємо/оновлюємо дані звітів окремо від дашборду
+  useEffect(() => {
+    setReportsOrders([]);
+    if (view === 'reports' && projectId && !demoMode) {
+      fetchReportsData();
+    }
+  }, [projectId, demoMode, view, fetchReportsData]);
+
   const filteredOrders = useMemo(() => {
     const q = filters.query.trim();
     const fromTs = filters.from ? dayjs(filters.from).startOf('day').valueOf() : null;
@@ -240,7 +281,7 @@ const App = () => {
       return 'neutral';
     };
 
-    return orders.filter((o) => {
+    const list = orders.filter((o) => {
       if (q && !String(o.order_id).includes(q)) return false;
       if (filters.onlyUrgent && !o.is_urgent) return false;
       if (filters.onlyOver) {
@@ -254,6 +295,8 @@ const App = () => {
       const createdAtTs = o.order_created_at ? new Date(o.order_created_at).getTime() : null;
       const fallbackDate = o.started_at ? new Date(o.started_at).getTime() : o.last_changed_at ? new Date(o.last_changed_at).getTime() : null;
       const dateTs = createdAtTs ?? fallbackDate;
+      if (filters.stageGroup && String(o.last_status_group_id) !== String(filters.stageGroup)) return false;
+      if (filters.statusId && String(o.last_status_id) !== String(filters.statusId)) return false;
       if (fromTs !== null) {
         if (dateTs === null) return false;
         if (dateTs < fromTs) return false;
@@ -264,6 +307,31 @@ const App = () => {
       }
       return true;
     });
+
+    const duration = (o) => {
+      if (o.cycle_seconds != null) return o.cycle_seconds;
+      if (o.stage_seconds) return Object.values(o.stage_seconds).reduce((s, v) => s + (v || 0), 0);
+      return 0;
+    };
+    const createdTs = (o) => new Date(o.order_created_at || o.started_at || o.last_changed_at || 0).getTime();
+
+    const sorted = [...list];
+    switch (filters.sort) {
+      case 'duration_asc':
+        sorted.sort((a, b) => duration(a) - duration(b));
+        break;
+      case 'date_desc':
+        sorted.sort((a, b) => createdTs(b) - createdTs(a));
+        break;
+      case 'date_asc':
+        sorted.sort((a, b) => createdTs(a) - createdTs(b));
+        break;
+      case 'duration_desc':
+      default:
+        sorted.sort((a, b) => duration(b) - duration(a));
+        break;
+    }
+    return sorted;
   }, [filters, orders]);
 
   const handleOpenTimeline = async (order) => {
@@ -502,6 +570,21 @@ const App = () => {
       </Box>
 
       <Box display="flex" justifyContent="flex-end" sx={{ mb: 2 }}>
+        <Button
+          size="small"
+          variant={view === 'dashboard' ? 'contained' : 'outlined'}
+          sx={{ mr: 1 }}
+          onClick={() => setView('dashboard')}
+        >
+          Дашборд
+        </Button>
+        <Button
+          size="small"
+          variant={view === 'reports' ? 'contained' : 'outlined'}
+          onClick={() => setView('reports')}
+        >
+          Звіти
+        </Button>
         <Button size="small" variant="outlined" onClick={() => setShowSettings(true)}>
           Налаштування
         </Button>
@@ -538,37 +621,135 @@ const App = () => {
         </DialogContent>
       </Dialog>
 
-      <AnalyticsPanel orders={orders} stageLabels={stageLabels} />
-
-      <FilterBar filters={filters} onChange={setFilters} onSubmit={() => loadData(true)} />
-
-      {filteredOrders.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">
-          За вибраними фільтрами замовлень немає.
-        </Typography>
-      ) : (
-        <Grid container spacing={2}>
-          {filteredOrders.map((order) => (
-            <Grid item xs={12} md={6} key={order.order_id || order.id}>
-              <OrderCard
-                order={{
-                  id: order.order_id,
-                  currentStatus: statusName(order.last_status_id),
-                  createdAt: order.order_created_at || order.started_at || order.last_changed_at,
-                  updatedAt: order.last_changed_at,
-                  stageTimes: order.stage_seconds || {},
-                  isUrgent: order.is_urgent,
-                  urgentRule: order.urgent_rule
-                }}
-                stageLabels={stageLabels}
-                stageLimits={order.is_urgent ? slaUrgent : stageLimits}
-                nearThreshold={nearThreshold}
-                onOpenTimeline={() => handleOpenTimeline(order)}
-                onToggleUrgent={handleToggleUrgent}
-              />
+      {view === 'dashboard' && (
+        <>
+          <AnalyticsPanel orders={orders} stageLabels={stageLabels} />
+          <FilterBar
+            filters={filters}
+            onChange={setFilters}
+            onSubmit={() => loadData(true)}
+            stageOptions={dicts.groups.map((g) => ({ id: g.group_id, name: g.group_name }))}
+            statusOptions={dicts.statuses.map((s) => ({ id: s.status_id, name: s.name, group_id: s.group_id }))}
+          />
+          {filteredOrders.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              За вибраними фільтрами замовлень немає.
+            </Typography>
+          ) : (
+            <Grid container spacing={2}>
+              {filteredOrders.map((order) => (
+                <Grid item xs={12} key={order.order_id || order.id}>
+                  <OrderCard
+                    order={{
+                      id: order.order_id,
+                      currentStatus: statusName(order.last_status_id),
+                      createdAt: order.order_created_at || order.started_at || order.last_changed_at,
+                      updatedAt: order.last_changed_at,
+                      stageTimes: order.stage_seconds || {},
+                      isUrgent: order.is_urgent,
+                      urgentRule: order.urgent_rule
+                    }}
+                    stageLabels={stageLabels}
+                    stageLimits={order.is_urgent ? slaUrgent : stageLimits}
+                    nearThreshold={nearThreshold}
+                    onOpenTimeline={() => handleOpenTimeline(order)}
+                    onToggleUrgent={handleToggleUrgent}
+                  />
+                </Grid>
+              ))}
             </Grid>
-          ))}
-        </Grid>
+          )}
+        </>
+      )}
+
+      {view === 'reports' && (
+        <>
+          <Stack direction="row" spacing={1} mb={2}>
+            <Button
+              size="small"
+              variant={reportTab === 'custom' ? 'contained' : 'outlined'}
+              onClick={() => setReportTab('custom')}
+            >
+              Кастомний звіт
+            </Button>
+            <Button
+              size="small"
+              variant={reportTab === 'productivity' ? 'contained' : 'outlined'}
+              onClick={() => setReportTab('productivity')}
+            >
+              Звіт продуктивності
+            </Button>
+            <Button
+              size="small"
+              variant={reportTab === 'cancellation' ? 'contained' : 'outlined'}
+              onClick={() => setReportTab('cancellation')}
+            >
+              Відміни
+            </Button>
+            <Button
+              size="small"
+              variant={reportTab === 'success' ? 'contained' : 'outlined'}
+              onClick={() => setReportTab('success')}
+            >
+              Успішність
+            </Button>
+            <Button
+              size="small"
+              variant={reportTab === 'sla' ? 'contained' : 'outlined'}
+              onClick={() => setReportTab('sla')}
+            >
+              SLA
+            </Button>
+          </Stack>
+
+          {reportTab === 'custom' && (
+            <ReportsPanel
+              orders={reportsOrders}
+              stageLabels={stageLabels}
+              statuses={dicts.statuses.map((s) => ({ id: s.status_id, name: s.name, group_id: s.group_id }))}
+              onFetch={fetchReportsData}
+              loading={reportsLoading}
+              onOpenOrder={handleOpenTimeline}
+            />
+          )}
+
+          {reportTab === 'productivity' && (
+            <ProductivityReport
+              orders={reportsOrders}
+              stageLabels={stageLabels}
+              onFetch={fetchReportsData}
+              onOpenOrder={handleOpenTimeline}
+            />
+          )}
+
+          {reportTab === 'cancellation' && (
+            <CancellationReport
+              orders={reportsOrders}
+              stageLabels={stageLabels}
+              onFetch={fetchReportsData}
+              onOpenOrder={handleOpenTimeline}
+            />
+          )}
+
+          {reportTab === 'success' && (
+            <SuccessReport
+              orders={reportsOrders}
+              stageLabels={stageLabels}
+              onFetch={fetchReportsData}
+              onOpenOrder={handleOpenTimeline}
+            />
+          )}
+
+          {reportTab === 'sla' && (
+            <SLAReport
+              orders={reportsOrders}
+              stageLabels={stageLabels}
+              statuses={dicts.statuses.map((s) => ({ id: s.status_id, name: s.name }))}
+              onFetch={fetchReportsData}
+              onOpenOrder={handleOpenTimeline}
+            />
+          )}
+        </>
       )}
 
       <TimelineModal
