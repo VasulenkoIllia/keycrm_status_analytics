@@ -21,6 +21,9 @@ services:
       REDIS_URL: redis://redis:6379
       PORT: 4000
       TZ: Europe/Kyiv
+      AUTH_USER: ${AUTH_USER:?set AUTH_USER in .env}
+      AUTH_PASS: ${AUTH_PASS:?set AUTH_PASS in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
     restart: unless-stopped
     networks:
       - app-net
