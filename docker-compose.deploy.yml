@@ -4,6 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     container_name: orderstatus-backend
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy
