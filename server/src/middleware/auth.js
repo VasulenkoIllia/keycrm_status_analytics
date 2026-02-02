@@ -44,21 +44,22 @@ export function webhookAuth(req, res, next) {
   const header = req.headers['x-webhook-token'] || '';
   const provided = queryToken || header;
 
-  // If env token set — require exact match
-  if (envToken) {
-    if (provided && provided === envToken) return next();
-    return res.status(401).json({ error: 'unauthorized' });
-  }
+  // 1) якщо є env токен і він співпав — пропускаємо одразу
+  if (envToken && provided === envToken) return next();
 
-  // No env token: try project-specific token if present
+  // 2) перевіряємо проектний токен (пріоритетний, навіть якщо envToken заданий)
   const projectId = Number(req.query.project || req.body?.project);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project is required' });
   const db = req.app.get('db');
   db.query('SELECT webhook_token FROM projects WHERE id = $1', [projectId])
     .then((r) => {
       const projToken = r.rows[0]?.webhook_token || null;
-      if (!projToken) return next(); // no token set => allow
+      if (!projToken) {
+        // якщо токен проєкту не заданий — допускаємо
+        return next();
+      }
       if (provided && provided === projToken) return next();
+      // якщо є envToken і збігся б — вже вийшли вище, тож тут 401
       return res.status(401).json({ error: 'unauthorized' });
     })
     .catch(() => res.status(500).json({ error: 'internal' }));
