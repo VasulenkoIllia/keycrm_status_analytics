@@ -17,6 +17,8 @@ import { apiAuth, loginHandler } from './middleware/auth.js';
 dotenv.config({ path: '../.env' });
 
 const app = express();
+// Вимикаємо ETag, щоб клієнт завжди отримував свіжі дані (і не ловив 304)
+app.set('etag', false);
 let transport;
 if (process.env.NODE_ENV === 'development') {
   try {
@@ -70,6 +72,13 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json({ limit: '1mb' }));
+// Не кешувати API-відповіді — корисно для живої аналітики та миттєвих оновлень
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
 
 // DB pool attach
 const pool = createDb();
