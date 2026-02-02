@@ -6,15 +6,12 @@ import OrderCard from './components/OrderCard';
 import TimelineModal from './components/TimelineModal';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import SettingsPanel from './components/SettingsPanel';
-import { fetchOrders, fetchTimeline, fetchDicts, openOrdersStream, setApiToken, login, fetchSettingsSLA, saveOrderOverride } from './api/client';
+import { fetchOrders, fetchTimeline, fetchDicts, openOrdersStream, setApiToken, login, fetchSettingsSLA, saveOrderOverride, fetchProjects } from './api/client';
 import { STAGE_LABELS as MOCK_STAGE_LABELS, STAGE_LIMITS_HOURS, mockOrders, STATUS_BY_STAGE } from './data/mockOrders';
 import { formatDuration } from './utils/time';
 import dayjs from 'dayjs';
 
-const PROJECTS = [
-  { id: 1, name: 'custom-gifts' },
-  { id: 2, name: 'gal-industries' }
-];
+const PROJECTS_STATIC = [];
 
 const App = () => {
   const [filters, setFilters] = useState({
@@ -26,6 +23,7 @@ const App = () => {
     slaState: ''
   });
   const [projectId, setProjectId] = useState(null);
+  const [projects, setProjects] = useState([]);
   const [apiToken, setToken] = useState(() => localStorage.getItem('apiToken') || '');
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [dicts, setDicts] = useState({ groups: [], statuses: [] });
@@ -170,6 +168,11 @@ const App = () => {
     const demo = params.get('demo');
     if (demo === '1') setDemoMode(true);
     if (pid) setProjectId(Number(pid));
+
+    // завантажити список проектів
+    fetchProjects()
+      .then((res) => setProjects(res))
+      .catch(() => setProjects(PROJECTS_STATIC));
   }, []);
 
   // Обробка back/forward
@@ -333,7 +336,7 @@ const App = () => {
       <Container maxWidth="md" sx={{ py: 6, textAlign: 'center' }}>
         <Typography variant="h5" gutterBottom>Оберіть CRM проєкт</Typography>
         <Stack direction="row" spacing={2} justifyContent="center">
-          {PROJECTS.map((p) => (
+          {projects.map((p) => (
             <Button
               key={p.id}
               variant="contained"

@@ -11,6 +11,7 @@ import ordersRouter from './routes/orders.js';
 import dictsRouter from './routes/dicts.js';
 import settingsRouter from './routes/settings.js';
 import streamRouter from './routes/stream.js';
+import projectsRouter from './routes/projects.js';
 import { apiAuth, loginHandler } from './middleware/auth.js';
 
 dotenv.config({ path: '../.env' });
@@ -100,6 +101,7 @@ app.get('/health', async (req, res) => {
 app.use('/webhooks/keycrm', webhookRouter);
 app.post('/api/login', express.json(), loginHandler);
 app.use('/api', apiAuth);
+app.use('/api/projects', projectsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/dicts', dictsRouter);
 app.use('/api/settings', settingsRouter);

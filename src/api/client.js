@@ -186,3 +186,10 @@ export async function saveOrderOverride(projectId, orderId, payload) {
   if (!res.ok) throw new Error('Не вдалося зберегти override');
   return res.json();
 }
+
+export async function fetchProjects() {
+  const url = new URL('/api/projects', API_BASE);
+  const res = await fetch(url, { headers: { ...authHeaders() } });
+  if (!res.ok) throw new Error('Не вдалося отримати проєкти');
+  return res.json();
+}
