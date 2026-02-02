@@ -41,9 +41,9 @@ function rangesFor(map, groupId, weekday) {
   return [{ start: 0, end: 24 * 3600 }];
 }
 
-// Convert JS getUTCDay (0=Sun) to our weekday (0=Mon..6=Sun)
-function dayIndex(jsUtcDay) {
-  return (jsUtcDay + 6) % 7;
+// Convert JS getDay (0=Sun) to our weekday (0=Mon..6=Sun)
+function dayIndex(jsDay) {
+  return (jsDay + 6) % 7;
 }
 
 function overlap(aStart, aEnd, bStart, bEnd) {
@@ -57,10 +57,10 @@ function workingSecondsForInterval(start, end, groupId, workingMap) {
   let cursor = new Date(start);
   const endDate = new Date(end);
   while (cursor < endDate) {
-    const dayStart = Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate());
-    const dayEnd = Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate() + 1);
+    const dayStart = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()).getTime(); // локальна північ (TZ контейнера)
+    const dayEnd = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1).getTime();
     const sliceEnd = Math.min(dayEnd, endDate.getTime());
-    const weekday = dayIndex(cursor.getUTCDay());
+    const weekday = dayIndex(cursor.getDay());
     const ranges = rangesFor(workingMap, groupId, weekday);
     const fromSec = (cursor.getTime() - dayStart) / 1000;
     const toSec = (sliceEnd - dayStart) / 1000;

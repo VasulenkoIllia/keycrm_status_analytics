@@ -161,7 +161,7 @@ const App = () => {
     if (apiToken) setApiToken(apiToken);
   }, [apiToken]);
 
-  // Ініціалізація projectId з URL
+  // Ініціалізація projectId з URL + початкове завантаження списку проєктів (може дати 401 без токена)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const pid = params.get('project');
@@ -174,6 +174,14 @@ const App = () => {
       .then((res) => setProjects(res))
       .catch(() => setProjects(PROJECTS_STATIC));
   }, []);
+
+  // Після успішного логіну (є токен) підтягуємо список проєктів ще раз, щоб не треба було перезавантажувати сторінку
+  useEffect(() => {
+    if (!apiToken) return;
+    fetchProjects()
+      .then((res) => setProjects(res))
+      .catch(() => {}); // ігноруємо, якщо тимчасово не доступно
+  }, [apiToken]);
 
   // Обробка back/forward
   useEffect(() => {
