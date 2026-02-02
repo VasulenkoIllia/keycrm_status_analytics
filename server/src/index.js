@@ -99,6 +99,8 @@ app.get('/health', async (req, res) => {
 });
 
 app.use('/webhooks/keycrm', webhookRouter);
+// дублюємо під /api/... щоб обійти apiAuth для webhook
+app.use('/api/webhooks/keycrm', webhookRouter);
 app.post('/api/login', express.json(), loginHandler);
 app.use('/api', apiAuth);
 app.use('/api/projects', projectsRouter);
