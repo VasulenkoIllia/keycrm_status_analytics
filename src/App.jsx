@@ -35,6 +35,7 @@ const App = () => {
   const [slaUrgent, setSlaUrgent] = useState({ 1: 8, 2: 16, 3: 16, 4: 8 });
   const [nearThreshold, setNearThreshold] = useState(0.8);
   const [demoMode, setDemoMode] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '' });
 
   const groupName = (groupId) =>
     dicts.groups.find((g) => g.group_id === groupId)?.group_name ||
@@ -199,11 +200,28 @@ const App = () => {
 
   useEffect(() => {
     if (!projectId) return undefined;
-    loadData().catch(console.error);
-    if (demoMode) return undefined;
-    const es = openOrdersStream(projectId, () => {
-      loadData().catch(console.error);
+    loadData().catch((e) => {
+      if (e?.code === 401 || e?.message === 'auth') {
+        localStorage.removeItem('apiToken');
+        setToken('');
+        setSnackbar({ open: true, message: 'Сесія завершена. Увійдіть знову.' });
+      } else {
+        console.error(e);
+      }
     });
+    if (demoMode) return undefined;
+    const es = openOrdersStream(
+      projectId,
+      () => {
+        loadData().catch(console.error);
+      },
+      () => {
+        // Якщо SSE впав без відновлення — виходимо із сесії
+        localStorage.removeItem('apiToken');
+        setToken('');
+        setSnackbar({ open: true, message: 'Сесія завершена. Увійдіть знову.' });
+      }
+    );
     return () => es.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, filters.from, filters.to, apiToken, demoMode]);
@@ -378,6 +396,32 @@ const App = () => {
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
+      {snackbar.open && (
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 16,
+            right: 16,
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            color: '#fff',
+            px: 2,
+            py: 1,
+            borderRadius: 1,
+            zIndex: 2000
+          }}
+        >
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="body2">{snackbar.message}</Typography>
+            <IconButton
+              size="small"
+              color="inherit"
+              onClick={() => setSnackbar({ open: false, message: '' })}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Stack>
+        </Box>
+      )}
       <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between" mb={3}>
         <Box>
           <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>

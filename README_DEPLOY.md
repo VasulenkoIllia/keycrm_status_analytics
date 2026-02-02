@@ -12,6 +12,8 @@
 - Dockerfile-и: `Dockerfile.backend`, `Dockerfile.frontend`
 - nginx конфіг фронту: `deploy/nginx.conf`
 - Таймзона всіх контейнерів: `Europe/Kyiv`
+- API відповіді віддаються з `Cache-Control: no-store` і без ETag, щоб фронт завжди бачив свіжі дані (більше трафіку, зате без 304/кешів).
+- Якщо потрібен тимчасовий режим сумісності без токена вебхука: `ALLOW_EMPTY_WEBHOOK_TOKEN=true` (за замовчуванням вимкнено, без токена — 401).
 
 ### Запуск
 ```bash
@@ -38,12 +40,12 @@ docker compose -f docker-compose.deploy.yml run --rm backend node scripts/run-mi
 - Сертифікати: resolver `cf`, entrypoint `websecure`
 
 ## Webhook URL-и
-- Єдиний endpoint для вебхука KeyCRM (доступний без Bearer):  
+- Єдиний endpoint для вебхука KeyCRM:  
   `https://orderstatus.workflo.space/api/webhooks/keycrm?project={PROJECT_ID}&token=<webhook_token>`
 - Авторизація вебхука: token у query або заголовок `x-webhook-token`.
 - Перевірка токена:
   1) якщо `WEBHOOK_TOKEN` env і збіг — прохід;
-  2) інакше перевіряється `projects.webhook_token` для `project_id`; якщо поле пусте — прохід, якщо задане — має збігтися.
+  2) інакше перевіряється `projects.webhook_token` для `project_id`; **якщо токен проєкту відсутній або не переданий — 401**.
 - `project` у query обов'язковий.
 
 ## Структура даних

@@ -1,10 +1,23 @@
 import jwt from 'jsonwebtoken';
 
-const getCreds = () => ({
-  user: process.env.AUTH_USER || 'admin',
-  pass: process.env.AUTH_PASS || 'admin123',
-  secret: process.env.JWT_SECRET || 'dev_secret'
-});
+const DEFAULT_USER = 'admin';
+const DEFAULT_PASS = 'admin123';
+const DEFAULT_SECRET = 'dev_secret';
+
+const creds = {
+  user: process.env.AUTH_USER || DEFAULT_USER,
+  pass: process.env.AUTH_PASS || DEFAULT_PASS,
+  secret: process.env.JWT_SECRET || DEFAULT_SECRET
+};
+
+// У проді не стартуємо з дефолтними обліковими даними
+if (process.env.NODE_ENV === 'production') {
+  if (creds.user === DEFAULT_USER || creds.pass === DEFAULT_PASS || creds.secret === DEFAULT_SECRET) {
+    throw new Error('AUTH_USER/AUTH_PASS/JWT_SECRET must be set in production');
+  }
+}
+
+const getCreds = () => creds;
 
 export function issueToken(username) {
   const { secret } = getCreds();
@@ -40,6 +53,7 @@ export function apiAuth(req, res, next) {
 
 export function webhookAuth(req, res, next) {
   const envToken = process.env.WEBHOOK_TOKEN;
+  const allowEmpty = process.env.ALLOW_EMPTY_WEBHOOK_TOKEN === 'true';
   const queryToken = req.query.token;
   const header = req.headers['x-webhook-token'] || '';
   const provided = queryToken || header;
@@ -50,14 +64,15 @@ export function webhookAuth(req, res, next) {
   // 2) перевіряємо проектний токен (пріоритетний, навіть якщо envToken заданий)
   const projectId = Number(req.query.project || req.body?.project);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project is required' });
+  if (!provided && !allowEmpty) return res.status(401).json({ error: 'webhook token required' });
+
   const db = req.app.get('db');
   db.query('SELECT webhook_token FROM projects WHERE id = $1', [projectId])
     .then((r) => {
-      const projToken = r.rows[0]?.webhook_token || null;
-      if (!projToken) {
-        // якщо токен проєкту не заданий — допускаємо
-        return next();
-      }
+      if (!r.rows[0]) return res.status(404).json({ error: 'project not found' });
+      const projToken = r.rows[0].webhook_token || null;
+      if (!projToken && allowEmpty) return next();
+      if (!projToken) return res.status(401).json({ error: 'webhook token required' });
       if (provided && provided === projToken) return next();
       // якщо є envToken і збігся б — вже вийшли вище, тож тут 401
       return res.status(401).json({ error: 'unauthorized' });
