@@ -12,7 +12,11 @@ router.get('/orders', async (req, res) => {
     return res.status(400).end('project_id is required');
   }
   // Per-connection subscriber to avoid conflicts between SSE clients
-  const redisUrl = `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`;
+  const redisUrl =
+    process.env.REDIS_URL ||
+    (process.env.REDIS_HOST
+      ? `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}`
+      : 'redis://redis:6379');
   const redisSub = createClient({ url: redisUrl });
   await redisSub.connect();
 
