@@ -373,7 +373,7 @@ const App = () => {
       <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between" mb={3}>
         <Box>
           <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>
-            Трекер часу — {demoMode ? 'Демо режим' : PROJECTS.find((p) => p.id === projectId)?.name}
+            Трекер часу — {demoMode ? 'Демо режим' : (projects.find((p) => p.id === projectId)?.name || `Проєкт #${projectId}`)}
           </Typography>
           <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: '100%', display: 'block' }}>
             Ланцюжок: {Object.values(stageLabels).join(' → ')}
