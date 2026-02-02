@@ -344,6 +344,7 @@ export default function SettingsPanel({
               fullWidth
               label="Назва проєкту"
               size="small"
+              InputLabelProps={{ shrink: true }}
               value={projectInfo.name}
               onChange={(e) => setProjectInfo((p) => ({ ...p, name: e.target.value }))}
               disabled={!projectId}
@@ -355,6 +356,7 @@ export default function SettingsPanel({
               label="Base URL"
               placeholder="https://openapi.keycrm.app/v1"
               size="small"
+              InputLabelProps={{ shrink: true }}
               value={projectInfo.base_url}
               onChange={(e) => setProjectInfo((p) => ({ ...p, base_url: e.target.value }))}
               disabled={!projectId}
@@ -366,6 +368,7 @@ export default function SettingsPanel({
               label="API Token"
               size="small"
               type="password"
+              InputLabelProps={{ shrink: true }}
               value={projectInfo.api_token}
               onChange={(e) => setProjectInfo((p) => ({ ...p, api_token: e.target.value }))}
               disabled={!projectId}
@@ -377,6 +380,7 @@ export default function SettingsPanel({
               label="Webhook URL"
               size="small"
               placeholder="https://your-host/webhooks/keycrm?project=ID"
+              InputLabelProps={{ shrink: true }}
               value={projectInfo.webhook_url}
               onChange={(e) => setProjectInfo((p) => ({ ...p, webhook_url: e.target.value }))}
               disabled={!projectId}
@@ -388,6 +392,7 @@ export default function SettingsPanel({
               label="Webhook Token"
               size="small"
               type="password"
+              InputLabelProps={{ shrink: true }}
               value={projectInfo.webhook_token}
               onChange={(e) => setProjectInfo((p) => ({ ...p, webhook_token: e.target.value }))}
               helperText="Додається у заголовок x-webhook-token або ?token="

@@ -11,6 +11,7 @@ import ProductivityReport from './components/ProductivityReport';
 import CancellationReport from './components/CancellationReport';
 import SuccessReport from './components/SuccessReport';
 import SLAReport from './components/SLAReport';
+import StageTimeReport from './components/StageTimeReport';
 import { fetchOrders, fetchTimeline, fetchDicts, openOrdersStream, setApiToken, login, fetchSettingsSLA, saveOrderOverride, fetchProjects } from './api/client';
 import { STAGE_LABELS as MOCK_STAGE_LABELS, STAGE_LIMITS_HOURS, mockOrders, STATUS_BY_STAGE } from './data/mockOrders';
 import { formatDuration } from './utils/time';
@@ -46,7 +47,7 @@ const App = () => {
   const [demoMode, setDemoMode] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
   const [view, setView] = useState('dashboard'); // dashboard | reports
-  const [reportTab, setReportTab] = useState('custom'); // custom | productivity | cancellation | success | sla
+  const [reportTab, setReportTab] = useState('custom'); // custom | productivity | cancellation | success | sla | stage
   const [reportsOrders, setReportsOrders] = useState([]);
   const [reportsLoading, setReportsLoading] = useState(false);
 
@@ -700,6 +701,13 @@ const App = () => {
             >
               SLA
             </Button>
+            <Button
+              size="small"
+              variant={reportTab === 'stage' ? 'contained' : 'outlined'}
+              onClick={() => setReportTab('stage')}
+            >
+              Час по етапах
+            </Button>
           </Stack>
 
           {reportTab === 'custom' && (
@@ -745,6 +753,15 @@ const App = () => {
               orders={reportsOrders}
               stageLabels={stageLabels}
               statuses={dicts.statuses.map((s) => ({ id: s.status_id, name: s.name }))}
+              onFetch={fetchReportsData}
+              onOpenOrder={handleOpenTimeline}
+            />
+          )}
+
+          {reportTab === 'stage' && (
+            <StageTimeReport
+              orders={reportsOrders}
+              stageLabels={stageLabels}
               onFetch={fetchReportsData}
               onOpenOrder={handleOpenTimeline}
             />

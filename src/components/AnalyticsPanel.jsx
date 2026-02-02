@@ -98,42 +98,6 @@ export const AnalyticsPanel = ({ orders = [], stageLabels = {} }) => {
           </CardContent>
         </Card>
       </Grid>
-      <Grid item xs={12} md={3}>
-        <Card>
-          <CardContent>
-            <Typography variant="subtitle2" color="text.secondary">Час по етапах</Typography>
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                gap: 1,
-                mt: 1
-              }}
-            >
-              {Object.keys({ ...stageTotals, ...stageCalendar }).map((g) => (
-                <Chip
-                  key={`stage-${g}`}
-                  size="small"
-                  label={`${stageLabels[Number(g)] || g}: робочий ${fmtHours(stageTotals[g])} | фактичний ${fmtHours(stageCalendar[g])}`}
-                  sx={{ width: '100%', justifyContent: 'flex-start' }}
-                />
-              ))}
-              <Chip
-                key="total-work"
-                size="small"
-                label={`Σ Робочий: ${fmtHours(totalWorking)}`}
-                sx={{ width: '100%', justifyContent: 'flex-start' }}
-              />
-              <Chip
-                key="total-cal"
-                size="small"
-                label={`Σ Фактичний: ${fmtHours(totalCalendar)}`}
-                sx={{ width: '100%', justifyContent: 'flex-start' }}
-              />
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
     </Grid>
   );
 };

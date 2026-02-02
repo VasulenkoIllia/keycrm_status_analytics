@@ -176,11 +176,14 @@ const ProductivityReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
             </TableRow>
           </TableHead>
           <TableBody>
-            {data.overdueTable.slice(0, 500).map((r) => (
+            {data.overdueTable.slice(0, 500).map((r, idx) => (
               <TableRow
                 key={r.id}
                 hover
-                sx={{ cursor: 'pointer' }}
+                sx={{
+                  cursor: 'pointer',
+                  backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)'
+                }}
                 onClick={() => onOpenOrder(orders.find((o) => o.order_id === r.id))}
               >
                 <TableCell>{r.id}</TableCell>

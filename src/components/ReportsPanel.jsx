@@ -226,8 +226,16 @@ const ReportsPanel = ({ orders = [], stageLabels = {}, statuses = [], onFetch = 
             </TableRow>
           </TableHead>
           <TableBody>
-            {filtered.slice(0, 500).map((o) => (
-              <TableRow key={o.order_id} hover sx={{ cursor: 'pointer' }} onClick={() => onOpenOrder(o)}>
+            {filtered.slice(0, 500).map((o, idx) => (
+              <TableRow
+                key={o.order_id}
+                hover
+                sx={{
+                  cursor: 'pointer',
+                  backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)'
+                }}
+                onClick={() => onOpenOrder(o)}
+              >
                 <TableCell>{o.order_id}</TableCell>
                 <TableCell>{stageLabels[o.last_status_group_id] || o.last_status_group_id}</TableCell>
                 <TableCell>{statuses.find((s) => String(s.id) === String(o.last_status_id))?.name || o.last_status_id}</TableCell>

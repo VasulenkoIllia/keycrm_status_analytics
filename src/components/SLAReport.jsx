@@ -122,11 +122,14 @@ const SLAReport = ({ orders = [], stageLabels = {}, statuses = [], onFetch = () 
             </TableRow>
           </TableHead>
           <TableBody>
-            {filtered.slice(0, 500).map((o) => (
+            {filtered.slice(0, 500).map((o, idx) => (
               <TableRow
                 key={o.order_id}
                 hover
-                sx={{ cursor: 'pointer' }}
+                sx={{
+                  cursor: 'pointer',
+                  backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)'
+                }}
                 onClick={() => onOpenOrder(o)}
               >
                 <TableCell>{o.order_id}</TableCell>

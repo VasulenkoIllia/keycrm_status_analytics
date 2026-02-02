@@ -152,11 +152,14 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
             </TableRow>
           </TableHead>
           <TableBody>
-            {data.canceled.slice(0, 500).map((o) => (
+            {data.canceled.slice(0, 500).map((o, idx) => (
               <TableRow
                 key={o.order_id}
                 hover
-                sx={{ cursor: 'pointer' }}
+                sx={{
+                  cursor: 'pointer',
+                  backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)'
+                }}
                 onClick={() => onOpenOrder(o)}
               >
                 <TableCell>{o.order_id}</TableCell>
