@@ -233,7 +233,25 @@ export default function SettingsPanel({
 
   const handleSaveWorking = async () => {
     const rules = [];
-    Object.entries(working).forEach(([gid, days]) => {
+    const allDays = [0, 1, 2, 3, 4, 5, 6];
+
+    // Формуємо мапу з дефолтом 24/7, якщо для групи немає жодного діапазону
+    const effective = { ...working };
+    (groups || []).forEach((g) => {
+      const gid = g.group_id;
+      const days = effective[gid];
+      const hasRanges =
+        days && Object.values(days).some((ranges) => Array.isArray(ranges) && ranges.length > 0);
+      if (!hasRanges) {
+        const full = {};
+        allDays.forEach((d) => {
+          full[d] = [{ start: '00:00', end: '23:59' }];
+        });
+        effective[gid] = full;
+      }
+    });
+
+    Object.entries(effective).forEach(([gid, days]) => {
       Object.entries(days).forEach(([weekday, ranges]) => {
         const normalized = (ranges || [])
           .map((r) => ({

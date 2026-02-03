@@ -10,6 +10,5 @@ export function createRedisClients() {
       ? `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}`
       : 'redis://redis:6379');
   const pub = createClient({ url });
-  const sub = createClient({ url });
-  return { pub, sub };
+  return { pub };
 }

@@ -83,11 +83,14 @@ app.use((req, res, next) => {
 // DB pool attach
 const pool = createDb();
 app.set('db', pool);
-const { pub: redisPub, sub: redisSub } = createRedisClients();
+const { pub: redisPub } = createRedisClients();
 await redisPub.connect();
-await redisSub.connect();
 app.set('redisPub', redisPub);
-app.set('redisSub', redisSub);
+
+const resources = {
+  server: null,
+  shuttingDown: false
+};
 
 app.get('/health', async (req, res) => {
   const checks = { db: 'unknown', redis: 'unknown' };
@@ -118,7 +121,34 @@ app.use('/api/dicts', dictsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/stream', streamRouter);
 
+const graceful = async (signal) => {
+  if (resources.shuttingDown) return;
+  resources.shuttingDown = true;
+  logger.warn(`Received ${signal}, shutting down gracefully...`);
+  try {
+    if (resources.server) {
+      await new Promise((resolve) => resources.server.close(resolve));
+    }
+    await redisPub.quit().catch(() => {});
+    await pool.end().catch(() => {});
+  } catch (e) {
+    logger.error({ err: e }, 'Error during shutdown');
+  } finally {
+    process.exit(0);
+  }
+};
+
+process.on('SIGTERM', () => graceful('SIGTERM'));
+process.on('SIGINT', () => graceful('SIGINT'));
+process.on('unhandledRejection', (err) => {
+  logger.error({ err }, 'Unhandled rejection');
+});
+process.on('uncaughtException', (err) => {
+  logger.error({ err }, 'Uncaught exception');
+  graceful('uncaughtException');
+});
+
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
+resources.server = app.listen(PORT, () => {
   logger.info(`Backend listening on ${PORT}`);
 });
