@@ -112,6 +112,8 @@ const FilterBar = ({ filters, onChange, onSubmit, stageOptions = [], statusOptio
         <MenuItem value="duration_asc">Тривалість: короткі → довгі</MenuItem>
         <MenuItem value="date_desc">Дата створення: новіші → старші</MenuItem>
         <MenuItem value="date_asc">Дата створення: старші → новіші</MenuItem>
+        <MenuItem value="id_desc">Номер: більші → менші</MenuItem>
+        <MenuItem value="id_asc">Номер: менші → більші</MenuItem>
       </TextField>
       <Stack direction="row" spacing={1} alignItems="center">
         <Chip

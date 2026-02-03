@@ -16,6 +16,7 @@ import { fetchOrders, fetchTimeline, fetchDicts, openOrdersStream, setApiToken, 
 import { STAGE_LABELS as MOCK_STAGE_LABELS, STAGE_LIMITS_HOURS, mockOrders, STATUS_BY_STAGE } from './data/mockOrders';
 import { formatDuration } from './utils/time';
 import dayjs from 'dayjs';
+import { useDebouncedValue } from './hooks/useDebouncedValue';
 
 const PROJECTS_STATIC = [];
 
@@ -54,6 +55,7 @@ const App = () => {
   const [reportTab, setReportTab] = useState('custom'); // custom | productivity | cancellation | success | sla | stage
   const [reportsOrders, setReportsOrders] = useState([]);
   const [reportsLoading, setReportsLoading] = useState(false);
+  const debouncedQuery = useDebouncedValue(filters.query, 200);
 
   const groupName = (groupId) =>
     dicts.groups.find((g) => g.group_id === groupId)?.group_name ||
@@ -273,7 +275,7 @@ const App = () => {
   }, [projectId, demoMode, view, fetchReportsData]);
 
   const filteredOrders = useMemo(() => {
-    const q = filters.query.trim();
+    const q = debouncedQuery.trim();
     const fromTs = filters.from ? dayjs(filters.from).startOf('day').valueOf() : null;
     const toTs = filters.to ? dayjs(filters.to).endOf('day').valueOf() : null;
 
@@ -324,6 +326,12 @@ const App = () => {
     switch (filters.sort) {
       case 'duration_asc':
         sorted.sort((a, b) => duration(a) - duration(b));
+        break;
+      case 'id_desc':
+        sorted.sort((a, b) => (b.order_id || 0) - (a.order_id || 0));
+        break;
+      case 'id_asc':
+        sorted.sort((a, b) => (a.order_id || 0) - (b.order_id || 0));
         break;
       case 'date_desc':
         sorted.sort((a, b) => createdTs(b) - createdTs(a));
