@@ -734,6 +734,7 @@ const App = () => {
             <CancellationReport
               orders={reportsOrders}
               stageLabels={stageLabels}
+              statuses={dicts.statuses.map((s) => ({ id: s.status_id, name: s.name, group_id: s.group_id }))}
               onFetch={fetchReportsData}
               onOpenOrder={handleOpenTimeline}
             />

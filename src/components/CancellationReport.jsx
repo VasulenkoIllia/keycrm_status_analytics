@@ -24,7 +24,7 @@ const isCancelStage = (name = '', gid) => {
   return false;
 };
 
-const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {}, onOpenOrder = () => {} }) => {
+const CancellationReport = ({ orders = [], stageLabels = {}, statuses = [], onFetch = () => {}, onOpenOrder = () => {} }) => {
   const [range, setRange] = useState({
     from: dayjs().format('YYYY-MM-DD'),
     to: dayjs().format('YYYY-MM-DD')
@@ -37,6 +37,7 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
 
   const data = useMemo(() => {
     const total = orders.length;
+    const statusMap = Object.fromEntries(statuses.map((s) => [String(s.id), s.name]));
     const filteredUrgent = orders.filter((o) => {
       if (urgentFilter === 'urgent') return o.is_urgent;
       if (urgentFilter === 'normal') return !o.is_urgent;
@@ -50,19 +51,28 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
     // Розбиття по етапу відміни (звичайно це одна група)
     const byStage = {};
     const previousStageStats = {};
+    const previousStatusStats = {};
     canceled.forEach((o) => {
       const key = o.last_status_group_id;
       byStage[key] = (byStage[key] || 0) + 1;
 
       let prevGid = o.prev_group_id;
+      let prevStatus = o.prev_status_id;
       if (prevGid == null) {
         const tl = (o.timeline || []).slice().sort(
           (a, b) => new Date(a.enteredAt) - new Date(b.enteredAt)
         );
-        if (tl.length >= 2) prevGid = tl[tl.length - 2].group_id;
+        if (tl.length >= 2) {
+          const prev = tl[tl.length - 2];
+          prevGid = prev.group_id;
+          prevStatus = prev.status_id;
+        }
       }
       if (prevGid != null) {
         previousStageStats[prevGid] = (previousStageStats[prevGid] || 0) + 1;
+      }
+      if (prevStatus != null) {
+        previousStatusStats[prevStatus] = (previousStatusStats[prevStatus] || 0) + 1;
       }
     });
     const stageRows = Object.entries(byStage).map(([gid, cnt]) => ({
@@ -77,9 +87,15 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
       count: cnt,
       rate: total ? Math.round((cnt / total) * 1000) / 10 : 0
     }));
+    const prevStatusRows = Object.entries(previousStatusStats).map(([sid, cnt]) => ({
+      sid,
+      name: statusMap[sid] || `Статус ${sid}`,
+      count: cnt,
+      rate: total ? Math.round((cnt / total) * 1000) / 10 : 0
+    }));
 
-    return { total, canceled, rate, stageRows, prevStageRows };
-  }, [orders, stageLabels]);
+    return { total, canceled, rate, stageRows, prevStageRows, prevStatusRows, statusMap };
+  }, [orders, stageLabels, statuses]);
 
   const resetRange = () => {
     const today = dayjs().format('YYYY-MM-DD');
@@ -168,6 +184,18 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
           )}
         </Stack>
 
+        <Typography variant="subtitle2" sx={{ mb: 1 }}>Попередній статус перед відміною</Typography>
+        <Stack direction="row" spacing={1} flexWrap="wrap" rowGap={1} mb={2}>
+          {data.prevStatusRows.map((r) => (
+            <Button key={r.sid} variant="outlined" size="small">
+              {r.name}: {r.count} ({r.rate}%)
+            </Button>
+          ))}
+          {data.prevStatusRows.length === 0 && (
+            <Typography variant="body2" color="text.secondary">Немає даних про попередній статус</Typography>
+          )}
+        </Stack>
+
         <Typography variant="subtitle2" sx={{ mb: 1 }}>
           Список відмінених замовлень
         </Typography>
@@ -199,7 +227,8 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
                   {(() => {
                     if (o.prev_group_id) {
                       const name = stageLabels[o.prev_group_id] || o.prev_group_id;
-                      return `${name} / ${o.prev_status_id || ''}`;
+                      const sName = data.statusMap[String(o.prev_status_id)] || o.prev_status_id || '';
+                      return `${name} / ${sName}`;
                     }
                     // fallback із таймлайна, якщо бекенд не повернув prev_*
                     const tl = (o.timeline || []).slice().sort(
@@ -208,7 +237,8 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
                     if (tl.length >= 2) {
                       const prev = tl[tl.length - 2];
                       const name = stageLabels[prev.group_id] || prev.stage || prev.group_id;
-                      return `${name} / ${prev.status || prev.status_id || ''}`;
+                      const sName = data.statusMap[String(prev.status_id)] || prev.status || prev.status_id || '';
+                      return `${name} / ${sName}`;
                     }
                     return '—';
                   })()}
