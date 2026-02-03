@@ -53,13 +53,15 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
     canceled.forEach((o) => {
       const key = o.last_status_group_id;
       byStage[key] = (byStage[key] || 0) + 1;
-      // попередній етап/статус беремо з timeline, останній запис перед cancel
-      const tl = o.timeline || [];
+
+      // попередній етап/статус беремо з таймлайна, відсортованого за enteredAt
+      const tl = (o.timeline || []).slice().sort(
+        (a, b) => new Date(a.enteredAt) - new Date(b.enteredAt)
+      );
       if (tl.length >= 2) {
         const prev = tl[tl.length - 2];
-        if (prev) {
-          const pgid = prev.group_id;
-          const pkey = pgid || 'unknown';
+        if (prev && prev.group_id != null) {
+          const pkey = prev.group_id;
           previousStageStats[pkey] = (previousStageStats[pkey] || 0) + 1;
         }
       }
@@ -196,7 +198,9 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
                 <TableCell>{stageLabels[o.last_status_group_id] || o.last_status_group_id}</TableCell>
                 <TableCell>
                   {(() => {
-                    const tl = o.timeline || [];
+                    const tl = (o.timeline || []).slice().sort(
+                      (a, b) => new Date(a.enteredAt) - new Date(b.enteredAt)
+                    );
                     if (tl.length >= 2) {
                       const prev = tl[tl.length - 2];
                       const name = stageLabels[prev.group_id] || prev.stage || prev.group_id;
