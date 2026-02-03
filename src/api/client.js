@@ -198,6 +198,12 @@ export async function saveUrgentRules(projectId, rules) {
   return handle(res, 'Не вдалося зберегти urgent правила');
 }
 
+export async function fetchWebhookStats() {
+  const url = new URL('/api/settings/webhook-stats', API_BASE);
+  const res = await fetch(url, { headers: { ...authHeaders() } });
+  return handle(res, 'Не вдалося отримати стан вебхука');
+}
+
 export async function fetchOrderOverride(projectId, orderId) {
   const url = new URL(`/api/orders/${orderId}/override`, API_BASE);
   url.searchParams.set('project_id', projectId);

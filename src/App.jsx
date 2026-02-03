@@ -29,8 +29,12 @@ const App = () => {
     slaState: '',
     stageGroup: '',
     statusId: '',
-    sort: 'duration_desc', // duration_desc | duration_asc | date_desc | date_asc
-    limit: 50
+    sort: 'duration_desc' // duration_desc | duration_asc | date_desc | date_asc
+  });
+  const [dashboardLimit, setDashboardLimit] = useState(() => {
+    const stored = Number(localStorage.getItem('dashboardLimit'));
+    if (Number.isFinite(stored) && stored >= 10 && stored <= 5000) return stored;
+    return 500;
   });
   const [projectId, setProjectId] = useState(null);
   const [projects, setProjects] = useState([]);
@@ -88,7 +92,7 @@ const App = () => {
     const urgent = Object.fromEntries(Object.entries(normal).map(([g, h]) => [g, Math.max(1, h * 0.7)]));
 
     // orders
-    const ordersMapped = mockOrders.map((m) => {
+    const ordersMapped = mockOrders.slice(0, dashboardLimit).map((m) => {
       const stageSeconds = {};
       const slaStates = {};
       // prefilling SLA states with neutral where limits exist
@@ -148,14 +152,14 @@ const App = () => {
       return;
     }
     if (!projectId) return;
-    const params = { ...filters };
+    const params = { ...filters, limit: dashboardLimit };
     if (applyFilters) {
       params.from = filters.from ? dayjs(filters.from).startOf('day').toISOString() : '';
       params.to = filters.to ? dayjs(filters.to).endOf('day').toISOString() : '';
     }
     const [d, o, sla] = await Promise.all([
       fetchDicts(projectId),
-      fetchOrders(projectId, applyFilters ? params : { limit: filters.limit || 50 }),
+      fetchOrders(projectId, params),
       fetchSettingsSLA(projectId)
     ]);
     setDicts(d);
@@ -258,7 +262,7 @@ const App = () => {
     );
     return () => es.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, filters.from, filters.to, apiToken, demoMode]);
+  }, [projectId, filters.from, filters.to, apiToken, demoMode, dashboardLimit]);
 
   // Скидаємо/оновлюємо дані звітів окремо від дашборду
   useEffect(() => {
@@ -611,6 +615,13 @@ const App = () => {
             slaNormal={slaNormal}
             slaUrgent={slaUrgent}
             nearThreshold={nearThreshold}
+            dashboardLimit={dashboardLimit}
+            onDashboardLimitChange={(val) => {
+              const next = val || 500;
+              setDashboardLimit(next);
+              localStorage.setItem('dashboardLimit', String(next));
+              loadData(true);
+            }}
             onSlaSaved={(normal, urgent, t) => {
               setSlaNormal(normal);
               setSlaUrgent(urgent);

@@ -1,0 +1,2 @@
+ALTER TABLE project_settings
+  ADD COLUMN IF NOT EXISTS dashboard_limit INTEGER DEFAULT 500;

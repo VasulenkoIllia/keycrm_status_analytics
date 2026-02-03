@@ -13,6 +13,7 @@ import settingsRouter from './routes/settings.js';
 import streamRouter from './routes/stream.js';
 import projectsRouter from './routes/projects.js';
 import { apiAuth, loginHandler } from './middleware/auth.js';
+import { startWebhookWorker } from './workers/webhookQueue.js';
 
 dotenv.config({ path: '../.env' });
 
@@ -89,8 +90,11 @@ app.set('redisPub', redisPub);
 
 const resources = {
   server: null,
-  shuttingDown: false
+  shuttingDown: false,
+  webhookWorker: null
 };
+
+resources.webhookWorker = await startWebhookWorker(app, logger);
 
 app.get('/health', async (req, res) => {
   const checks = { db: 'unknown', redis: 'unknown' };
@@ -128,6 +132,9 @@ const graceful = async (signal) => {
   try {
     if (resources.server) {
       await new Promise((resolve) => resources.server.close(resolve));
+    }
+    if (resources.webhookWorker) {
+      await resources.webhookWorker.quit().catch(() => {});
     }
     await redisPub.quit().catch(() => {});
     await pool.end().catch(() => {});

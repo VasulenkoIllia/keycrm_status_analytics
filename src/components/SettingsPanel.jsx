@@ -21,6 +21,7 @@ import {
   fetchWorkingHours,
   fetchProjectSettings,
   fetchUrgentRules,
+  fetchWebhookStats,
   saveOrderOverride,
   saveSettingsCycle,
   saveSettingsSLA,
@@ -53,7 +54,9 @@ export default function SettingsPanel({
   nearThreshold: nearThresholdProp = 0.8,
   onSlaSaved = () => {},
   onNearChange = () => {},
-  onCycleSaved = () => {}
+  onCycleSaved = () => {},
+  dashboardLimit = 500,
+  onDashboardLimitChange = () => {}
 }) {
   const [cycle, setCycle] = useState({ cycles: [], default_cycle_id: null });
   const [sla, setSla] = useState(DEFAULT_SLA);
@@ -62,7 +65,7 @@ export default function SettingsPanel({
   const [startStatus, setStartStatus] = useState('');
   const [endStatus, setEndStatus] = useState('');
   const [working, setWorking] = useState({});
-  const [projectInfo, setProjectInfo] = useState({ name: '', base_url: '', api_token: '' });
+  const [projectInfo, setProjectInfo] = useState({ name: '', base_url: '', api_token: '', webhook_url: '', webhook_token: '', dashboard_limit: 500 });
   const [savingProject, setSavingProject] = useState(false);
   const [urgentRules, setUrgentRules] = useState([]);
   const [savingUrgent, setSavingUrgent] = useState(false);
@@ -71,6 +74,7 @@ export default function SettingsPanel({
   const [overrideUrgent, setOverrideUrgent] = useState('none'); // none/true/false
   const [savingOverride, setSavingOverride] = useState(false);
   const [activeSection, setActiveSection] = useState('project');
+  const [webhookStats, setWebhookStats] = useState({ loading: false, queue_len: null, error: null });
 
   useEffect(() => {
     if (!projectId) return;
@@ -109,7 +113,8 @@ export default function SettingsPanel({
           base_url: p?.base_url || '',
           api_token: p?.api_token || '',
           webhook_url: p?.webhook_url || '',
-          webhook_token: p?.webhook_token || ''
+          webhook_token: p?.webhook_token || '',
+          dashboard_limit: p?.dashboard_limit || 500
         });
         setUrgentRules(ur.rules || []);
       })
@@ -285,7 +290,8 @@ export default function SettingsPanel({
         base_url: projectInfo.base_url || null,
         api_token: projectInfo.api_token || null,
         webhook_url: projectInfo.webhook_url || null,
-        webhook_token: projectInfo.webhook_token || null
+        webhook_token: projectInfo.webhook_token || null,
+        dashboard_limit: Number(projectInfo.dashboard_limit) || 500
       };
       const res = await saveProjectSettings(projectId, payload);
       setProjectInfo({
@@ -293,12 +299,24 @@ export default function SettingsPanel({
         base_url: res.base_url || '',
         api_token: res.api_token || '',
         webhook_url: res.webhook_url || '',
-        webhook_token: res.webhook_token || ''
+        webhook_token: res.webhook_token || '',
+        dashboard_limit: res.dashboard_limit || 500
       });
+      onDashboardLimitChange?.(res.dashboard_limit || 500);
     } catch (e) {
       alert(e.message);
     } finally {
       setSavingProject(false);
+    }
+  };
+
+  const refreshWebhookStats = async () => {
+    setWebhookStats({ loading: true, queue_len: webhookStats.queue_len, error: null });
+    try {
+      const res = await fetchWebhookStats();
+      setWebhookStats({ loading: false, queue_len: res.queue_len ?? 0, error: null });
+    } catch (e) {
+      setWebhookStats({ loading: false, queue_len: null, error: e.message });
     }
   };
 
@@ -346,7 +364,8 @@ export default function SettingsPanel({
     { key: 'cycle', label: 'Цикл' },
     { key: 'sla', label: 'SLA' },
     { key: 'working', label: 'Робочі години' },
-    { key: 'override', label: 'Ручний override' }
+    { key: 'override', label: 'Ручний override' },
+    { key: 'webhook', label: 'Вебхук / черга' }
   ];
 
   const projectCard = (
@@ -387,9 +406,25 @@ export default function SettingsPanel({
               size="small"
               type="password"
               InputLabelProps={{ shrink: true }}
-              value={projectInfo.api_token}
+              value={projectInfo.api_token ?? ''}
               onChange={(e) => setProjectInfo((p) => ({ ...p, api_token: e.target.value }))}
               disabled={!projectId}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              label="Ліміт замовлень для дашборду"
+              size="small"
+              type="number"
+              InputLabelProps={{ shrink: true }}
+              inputProps={{ min: 10, max: 5000, step: 10 }}
+              value={Number(dashboardLimit ?? 500)}
+              onChange={(e) => {
+                const val = Number(e.target.value) || 0;
+                const clamped = Math.min(Math.max(val, 10), 5000);
+                onDashboardLimitChange?.(clamped || 500);
+              }}
             />
           </Grid>
           <Grid item xs={12} md={4}>
@@ -399,7 +434,7 @@ export default function SettingsPanel({
               size="small"
               placeholder="https://your-host/webhooks/keycrm?project=ID"
               InputLabelProps={{ shrink: true }}
-              value={projectInfo.webhook_url}
+              value={projectInfo.webhook_url ?? ''}
               onChange={(e) => setProjectInfo((p) => ({ ...p, webhook_url: e.target.value }))}
               disabled={!projectId}
             />
@@ -411,7 +446,7 @@ export default function SettingsPanel({
               size="small"
               type="password"
               InputLabelProps={{ shrink: true }}
-              value={projectInfo.webhook_token}
+              value={projectInfo.webhook_token ?? ''}
               onChange={(e) => setProjectInfo((p) => ({ ...p, webhook_token: e.target.value }))}
               helperText="Додається у заголовок x-webhook-token або ?token="
               disabled={!projectId}
@@ -425,6 +460,62 @@ export default function SettingsPanel({
             </Stack>
           </Grid>
         </Grid>
+      </CardContent>
+    </Card>
+  );
+
+  const webhookInfoCard = (
+    <Card>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>Вебхук та черга</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Події KeyCRM приймаються на бекенд, одразу ставляться в Redis-чергу <code>webhook:queue</code> (202 Accepted),
+          далі воркер записує у БД та пушить оновлення в стрім. Якщо Redis недоступний — обробка виконується синхронно.
+        </Typography>
+        <Stack spacing={1.5}>
+          <Typography variant="subtitle2">Endpoint</Typography>
+          <TextField
+            size="small"
+            fullWidth
+            label="URL вебхука"
+            InputLabelProps={{ shrink: true }}
+            value={
+              projectInfo.webhook_url ||
+              (projectId
+                ? `${import.meta.env.VITE_API_BASE || window.location.origin}/api/webhooks/keycrm?project=${projectId}`
+                : 'https://your-host/api/webhooks/keycrm?project={ID}')
+            }
+            InputProps={{ readOnly: true }}
+          />
+          <Typography variant="body2" color="text.secondary">
+            Авторизація: query <code>?token=...</code> або заголовок <code>x-webhook-token</code>. Якщо для проєкту
+            токен порожній — запит відхиляється (401).
+          </Typography>
+
+          <Typography variant="subtitle2">Поточні значення проєкту</Typography>
+          <Stack spacing={0.5}>
+            <Typography variant="body2">Webhook URL: {projectInfo.webhook_url || 'не задано'}</Typography>
+            <Typography variant="body2">Webhook Token: {projectInfo.webhook_token ? 'задано' : 'не задано'}</Typography>
+          </Stack>
+
+          <Typography variant="subtitle2">Діагностика</Typography>
+          <Stack spacing={0.5}>
+            <Typography variant="body2">- /health — перевіряє DB і Redis.</Typography>
+            <Typography variant="body2">- У логах вебхука шукай <code>webhook enqueue error</code> або 5xx.</Typography>
+            <Typography variant="body2">
+              - Якщо подія не доходить у стрім, перевір Redis key <code>webhook:queue</code> (LLEN &gt; 0 — черга зростає).
+            </Typography>
+          </Stack>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
+            <Button size="small" variant="outlined" onClick={refreshWebhookStats} disabled={webhookStats.loading}>
+              {webhookStats.loading ? 'Оновлення…' : 'Оновити стан черги'}
+            </Button>
+            <Typography variant="body2">
+              Поточна довжина: {webhookStats.queue_len != null ? webhookStats.queue_len : '—'}
+              {webhookStats.error ? ` (помилка: ${webhookStats.error})` : ''}
+            </Typography>
+          </Stack>
+        </Stack>
       </CardContent>
     </Card>
   );
@@ -850,6 +941,8 @@ export default function SettingsPanel({
         return workingCard;
       case 'override':
         return overrideCard;
+      case 'webhook':
+        return webhookInfoCard;
       default:
         return null;
     }

@@ -115,7 +115,11 @@ router.get('/project', async (req, res) => {
   try {
     const db = req.app.get('db');
     const proj = await db.query(
-      'SELECT id, name, base_url, api_token, webhook_url, webhook_token, is_active, created_at, updated_at FROM projects WHERE id = $1',
+      `SELECT p.id, p.name, p.base_url, p.api_token, p.webhook_url, p.webhook_token, p.is_active, p.created_at, p.updated_at,
+              COALESCE(ps.dashboard_limit, 500) AS dashboard_limit
+       FROM projects p
+       LEFT JOIN project_settings ps ON ps.project_id = p.id
+       WHERE p.id = $1`,
       [projectId]
     );
     if (!proj.rows.length) return res.status(404).json({ error: 'project not found' });
@@ -145,10 +149,11 @@ router.get('/project', async (req, res) => {
 router.put('/project', async (req, res) => {
   const projectId = Number(req.body.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
-  const { name = null, base_url = null, api_token = null, webhook_url = null, webhook_token = null } = req.body;
+  const { name = null, base_url = null, api_token = null, webhook_url = null, webhook_token = null, dashboard_limit = null } = req.body;
   const is_active = typeof req.body.is_active === 'boolean' ? req.body.is_active : null;
   try {
     const db = req.app.get('db');
+    await db.query('BEGIN');
     const upd = await db.query(
       `UPDATE projects
        SET name = COALESCE($2, name),
@@ -162,9 +167,23 @@ router.put('/project', async (req, res) => {
        RETURNING id, name, base_url, api_token, webhook_url, webhook_token, is_active, created_at, updated_at`,
       [projectId, name, base_url || null, api_token || null, webhook_url || null, webhook_token || null, is_active]
     );
-    if (!upd.rows.length) return res.status(404).json({ error: 'project not found' });
-    res.json(upd.rows[0]);
+    if (!upd.rows.length) {
+      await db.query('ROLLBACK');
+      return res.status(404).json({ error: 'project not found' });
+    }
+    if (dashboard_limit !== null) {
+      await db.query(
+        `UPDATE project_settings
+         SET dashboard_limit = $2, updated_at = NOW()
+         WHERE project_id = $1`,
+        [projectId, Number(dashboard_limit) || 500]
+      );
+    }
+    await db.query('COMMIT');
+    const ps = await db.query('SELECT COALESCE(dashboard_limit,500) AS dashboard_limit FROM project_settings WHERE project_id = $1', [projectId]);
+    res.json({ ...upd.rows[0], dashboard_limit: ps.rows[0]?.dashboard_limit || 500 });
   } catch (e) {
+    await req.app.get('db').query('ROLLBACK');
     req.log.error({ err: e, body: req.body }, 'project settings update error');
     res.status(500).json({ error: e.message });
   }
@@ -185,6 +204,18 @@ router.get('/urgent-rules', async (req, res) => {
     res.json({ project_id: projectId, rules: rows.rows });
   } catch (e) {
     req.log.error(e, 'urgent rules get error');
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/webhook-stats', async (req, res) => {
+  const redis = req.app.get('redisPub');
+  if (!redis) return res.status(503).json({ error: 'redis unavailable' });
+  try {
+    const len = await redis.lLen('webhook:queue');
+    res.json({ queue_len: len ?? 0 });
+  } catch (e) {
+    req.log.error(e, 'webhook stats error');
     res.status(500).json({ error: e.message });
   }
 });

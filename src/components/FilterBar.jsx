@@ -113,18 +113,6 @@ const FilterBar = ({ filters, onChange, onSubmit, stageOptions = [], statusOptio
         <MenuItem value="date_desc">Дата створення: новіші → старші</MenuItem>
         <MenuItem value="date_asc">Дата створення: старші → новіші</MenuItem>
       </TextField>
-      <TextField
-        select
-        size="small"
-        label="Кількість"
-        value={filters.limit}
-        onChange={handleChange('limit')}
-        sx={{ minWidth: 120 }}
-      >
-        {[10, 20, 50, 100, 200, 500].map((n) => (
-          <MenuItem key={n} value={n}>{n}</MenuItem>
-        ))}
-      </TextField>
       <Stack direction="row" spacing={1} alignItems="center">
         <Chip
           clickable
@@ -166,8 +154,7 @@ const FilterBar = ({ filters, onChange, onSubmit, stageOptions = [], statusOptio
             slaState: '',
             stageGroup: '',
             statusId: '',
-            sort: 'duration_desc',
-            limit: 50
+            sort: 'duration_desc'
           })
         }
       >
