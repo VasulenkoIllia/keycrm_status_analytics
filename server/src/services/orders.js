@@ -167,6 +167,9 @@ export async function getOrdersList(db, projectId, { from = null, to = null, lim
 
   return orders.map((o) => {
     const evs = eventsByOrder.get(o.order_id) || [];
+    const sortedEvs = evs.slice().sort((a, b) => new Date(a.entered_at) - new Date(b.entered_at));
+    const prevEvent = sortedEvs.length >= 2 ? sortedEvs[sortedEvs.length - 2] : null;
+
     const stageSeconds = {};
     const stageCalendarSeconds = {};
     const slaStates = {};
@@ -235,6 +238,11 @@ export async function getOrdersList(db, projectId, { from = null, to = null, lim
       start_at: startAt,
       end_at: endAt,
       cycle_seconds: cycleSeconds
+      ,
+      prev_group_id: prevEvent ? prevEvent.status_group_id : null,
+      prev_status_id: prevEvent ? prevEvent.status_id : null,
+      prev_entered_at: prevEvent ? prevEvent.entered_at : null,
+      prev_left_at: prevEvent ? prevEvent.left_at : null
     };
   });
 }

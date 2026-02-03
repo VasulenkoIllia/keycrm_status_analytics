@@ -54,16 +54,15 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
       const key = o.last_status_group_id;
       byStage[key] = (byStage[key] || 0) + 1;
 
-      // попередній етап/статус беремо з таймлайна, відсортованого за enteredAt
-      const tl = (o.timeline || []).slice().sort(
-        (a, b) => new Date(a.enteredAt) - new Date(b.enteredAt)
-      );
-      if (tl.length >= 2) {
-        const prev = tl[tl.length - 2];
-        if (prev && prev.group_id != null) {
-          const pkey = prev.group_id;
-          previousStageStats[pkey] = (previousStageStats[pkey] || 0) + 1;
-        }
+      let prevGid = o.prev_group_id;
+      if (prevGid == null) {
+        const tl = (o.timeline || []).slice().sort(
+          (a, b) => new Date(a.enteredAt) - new Date(b.enteredAt)
+        );
+        if (tl.length >= 2) prevGid = tl[tl.length - 2].group_id;
+      }
+      if (prevGid != null) {
+        previousStageStats[prevGid] = (previousStageStats[prevGid] || 0) + 1;
       }
     });
     const stageRows = Object.entries(byStage).map(([gid, cnt]) => ({
@@ -198,6 +197,11 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
                 <TableCell>{stageLabels[o.last_status_group_id] || o.last_status_group_id}</TableCell>
                 <TableCell>
                   {(() => {
+                    if (o.prev_group_id) {
+                      const name = stageLabels[o.prev_group_id] || o.prev_group_id;
+                      return `${name} / ${o.prev_status_id || ''}`;
+                    }
+                    // fallback із таймлайна, якщо бекенд не повернув prev_*
                     const tl = (o.timeline || []).slice().sort(
                       (a, b) => new Date(a.enteredAt) - new Date(b.enteredAt)
                     );
