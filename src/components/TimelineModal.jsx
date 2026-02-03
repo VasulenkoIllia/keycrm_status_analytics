@@ -28,6 +28,23 @@ const TimelineModal = ({ open, onClose, order, stageLabels = {} }) => {
   const stageCalendar = order.stage_calendar_seconds || {};
   const slaStates = order.sla_states || {};
 
+  const statusDurationsByStage = useMemo(() => {
+    const map = {};
+    items.forEach((it) => {
+      const gid = String(it.group_id || '');
+      if (!gid) return;
+      const dur = it.leftAt ? (new Date(it.leftAt) - new Date(it.enteredAt)) / 1000 : null;
+      if (!map[gid]) map[gid] = [];
+      map[gid].push({
+        status: it.status || it.status_id || '',
+        duration: dur,
+        enteredAt: it.enteredAt,
+        leftAt: it.leftAt
+      });
+    });
+    return map;
+  }, [items]);
+
   const totalWork = useMemo(
     () => Object.values(stageSeconds).reduce((s, v) => s + (v || 0), 0),
     [stageSeconds]
@@ -44,9 +61,10 @@ const TimelineModal = ({ open, onClose, order, stageLabels = {} }) => {
         name: stageLabels[gid] || `Етап ${gid}`,
         work: stageSeconds[gid] || 0,
         cal: stageCalendar[gid] || 0,
-        sla: slaStates[gid] || 'neutral'
+        sla: slaStates[gid] || 'neutral',
+        statuses: statusDurationsByStage[String(gid)] || []
       })),
-    [stageSeconds, stageCalendar, slaStates, stageLabels]
+    [stageSeconds, stageCalendar, slaStates, stageLabels, statusDurationsByStage]
   );
 
   return (
@@ -100,7 +118,19 @@ const TimelineModal = ({ open, onClose, order, stageLabels = {} }) => {
                   <Chip size="small" variant="outlined" label={`SLA: ${r.sla}`} />
                 </Stack>
                 <Typography variant="body2">Робочий: {formatDuration(r.work)}</Typography>
-                <Typography variant="body2">Фактичний: {formatDuration(r.cal)}</Typography>
+                <Typography variant="body2" sx={{ mb: r.statuses.length ? 0.5 : 0 }}>
+                  Фактичний: {formatDuration(r.cal)}
+                </Typography>
+                {r.statuses.length > 0 && (
+                  <Stack spacing={0.5}>
+                    {r.statuses.map((st, i) => (
+                      <Typography key={i} variant="body2" sx={{ color: '#9ba4b5' }}>
+                        {stageLabels[r.gid] || `Етап ${r.gid}`} — {st.status || 'Статус'}:{' '}
+                        {st.duration != null ? formatDuration(st.duration) : '—'}
+                      </Typography>
+                    ))}
+                  </Stack>
+                )}
               </Box>
             ))}
             {stageRows.length === 0 && (
