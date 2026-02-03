@@ -49,9 +49,20 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
 
     // Розбиття по етапу відміни (звичайно це одна група)
     const byStage = {};
+    const previousStageStats = {};
     canceled.forEach((o) => {
       const key = o.last_status_group_id;
       byStage[key] = (byStage[key] || 0) + 1;
+      // попередній етап/статус беремо з timeline, останній запис перед cancel
+      const tl = o.timeline || [];
+      if (tl.length >= 2) {
+        const prev = tl[tl.length - 2];
+        if (prev) {
+          const pgid = prev.group_id;
+          const pkey = pgid || 'unknown';
+          previousStageStats[pkey] = (previousStageStats[pkey] || 0) + 1;
+        }
+      }
     });
     const stageRows = Object.entries(byStage).map(([gid, cnt]) => ({
       gid,
@@ -59,8 +70,14 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
       count: cnt,
       rate: total ? Math.round((cnt / total) * 1000) / 10 : 0
     }));
+    const prevStageRows = Object.entries(previousStageStats).map(([gid, cnt]) => ({
+      gid,
+      name: stageLabels[gid] || `Етап ${gid}`,
+      count: cnt,
+      rate: total ? Math.round((cnt / total) * 1000) / 10 : 0
+    }));
 
-    return { total, canceled, rate, stageRows };
+    return { total, canceled, rate, stageRows, prevStageRows };
   }, [orders, stageLabels]);
 
   const resetRange = () => {
@@ -138,6 +155,18 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
           )}
         </Stack>
 
+        <Typography variant="subtitle2" sx={{ mb: 1 }}>Попередній етап перед відміною</Typography>
+        <Stack direction="row" spacing={1} flexWrap="wrap" rowGap={1} mb={2}>
+          {data.prevStageRows.map((r) => (
+            <Button key={r.gid} variant="outlined" size="small">
+              {r.name}: {r.count} ({r.rate}%)
+            </Button>
+          ))}
+          {data.prevStageRows.length === 0 && (
+            <Typography variant="body2" color="text.secondary">Немає даних про попередній етап</Typography>
+          )}
+        </Stack>
+
         <Typography variant="subtitle2" sx={{ mb: 1 }}>
           Список відмінених замовлень
         </Typography>
@@ -146,6 +175,7 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
             <TableRow>
               <TableCell>ID</TableCell>
               <TableCell>Етап відміни</TableCell>
+              <TableCell>Попередній етап / статус</TableCell>
               <TableCell>Створено</TableCell>
               <TableCell>Оновлено</TableCell>
               <TableCell />
@@ -164,6 +194,17 @@ const CancellationReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
               >
                 <TableCell>{o.order_id}</TableCell>
                 <TableCell>{stageLabels[o.last_status_group_id] || o.last_status_group_id}</TableCell>
+                <TableCell>
+                  {(() => {
+                    const tl = o.timeline || [];
+                    if (tl.length >= 2) {
+                      const prev = tl[tl.length - 2];
+                      const name = stageLabels[prev.group_id] || prev.stage || prev.group_id;
+                      return `${name} / ${prev.status || prev.status_id || ''}`;
+                    }
+                    return '—';
+                  })()}
+                </TableCell>
                 <TableCell>{fmtDateTime(o.order_created_at)}</TableCell>
                 <TableCell>{fmtDateTime(o.last_changed_at)}</TableCell>
               </TableRow>
