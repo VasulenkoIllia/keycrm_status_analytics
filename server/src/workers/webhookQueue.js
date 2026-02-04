@@ -16,7 +16,8 @@ export async function startWebhookWorker(app, logger) {
       try {
         const res = await worker.brPop('webhook:queue', 5); // 5s таймаут
         if (!res) continue;
-        const [, raw] = res;
+        const raw = res.element ?? res[1] ?? null;
+        if (!raw) continue;
         const parsed = JSON.parse(raw);
         await handleWebhook(db, base, parsed.project, parsed.body);
       } catch (err) {
