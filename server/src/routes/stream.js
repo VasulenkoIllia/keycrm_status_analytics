@@ -1,5 +1,6 @@
 import express from 'express';
 import { createClient } from 'redis';
+import { requireProjectAccess } from '../middleware/access.js';
 
 const router = express.Router();
 
@@ -104,7 +105,7 @@ async function getHub(app) {
   return hub;
 }
 
-router.get('/orders', async (req, res) => {
+router.get('/orders', requireProjectAccess(), async (req, res) => {
   const projectId = Number(req.query.project_id);
   if (!Number.isInteger(projectId)) {
     return res.status(400).end('project_id is required');

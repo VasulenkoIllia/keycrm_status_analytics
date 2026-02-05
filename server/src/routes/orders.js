@@ -1,9 +1,10 @@
 import express from 'express';
 import { getOrdersList, getOrderTimeline } from '../services/orders.js';
+import { requireProjectAccess } from '../middleware/access.js';
 
 const router = express.Router();
 
-router.get('/', async (req, res) => {
+router.get('/', requireProjectAccess(), async (req, res) => {
   const projectId = Number(req.query.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   const from = req.query.from ? new Date(req.query.from) : null;
@@ -17,7 +18,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.get('/:id/timeline', async (req, res) => {
+router.get('/:id/timeline', requireProjectAccess(), async (req, res) => {
   const projectId = Number(req.query.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   const orderId = Number(req.params.id);
@@ -30,7 +31,7 @@ router.get('/:id/timeline', async (req, res) => {
   }
 });
 
-router.get('/:id/override', async (req, res) => {
+router.get('/:id/override', requireProjectAccess(), async (req, res) => {
   const projectId = Number(req.query.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   const orderId = Number(req.params.id);
@@ -48,7 +49,7 @@ router.get('/:id/override', async (req, res) => {
   }
 });
 
-router.put('/:id/override', async (req, res) => {
+router.put('/:id/override', requireProjectAccess(), async (req, res) => {
   const projectId = Number(req.body.project_id);
   const orderId = Number(req.params.id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });

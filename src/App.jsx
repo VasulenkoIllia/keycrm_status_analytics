@@ -13,10 +13,21 @@ import SuccessReport from './components/SuccessReport';
 import SLAReport from './components/SLAReport';
 import StageTimeReport from './components/StageTimeReport';
 import { fetchOrders, fetchTimeline, fetchDicts, openOrdersStream, setApiToken, login, fetchSettingsSLA, saveOrderOverride, fetchProjects } from './api/client';
+import UsersPanel from './components/UsersPanel';
 import { STAGE_LABELS as MOCK_STAGE_LABELS, STAGE_LIMITS_HOURS, mockOrders, STATUS_BY_STAGE } from './data/mockOrders';
 import { formatDuration } from './utils/time';
 import dayjs from 'dayjs';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
+
+const decodeRoleFromToken = (token) => {
+  try {
+    const payload = token.split('.')[1];
+    const json = JSON.parse(atob(payload));
+    return json.role || '';
+  } catch (e) {
+    return '';
+  }
+};
 
 const PROJECTS_STATIC = [];
 
@@ -40,6 +51,8 @@ const App = () => {
   const [projectId, setProjectId] = useState(null);
   const [projects, setProjects] = useState([]);
   const [apiToken, setToken] = useState(() => localStorage.getItem('apiToken') || '');
+  const [userRole, setUserRole] = useState(() => localStorage.getItem('userRole') || '');
+  const [userLogin, setUserLogin] = useState(() => localStorage.getItem('userLogin') || '');
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [dicts, setDicts] = useState({ groups: [], statuses: [] });
   const [orders, setOrders] = useState([]);
@@ -55,6 +68,7 @@ const App = () => {
   const [reportTab, setReportTab] = useState('custom'); // custom | productivity | cancellation | success | sla | stage
   const [reportsOrders, setReportsOrders] = useState([]);
   const [reportsLoading, setReportsLoading] = useState(false);
+  const [showUsers, setShowUsers] = useState(false);
   const debouncedQuery = useDebouncedValue(filters.query, 200);
 
   const groupName = (groupId) =>
@@ -200,7 +214,20 @@ const App = () => {
   // Проставити токен у клієнт при зміні стейту
   useEffect(() => {
     if (apiToken) setApiToken(apiToken);
-  }, [apiToken]);
+    // якщо роль не збережена (наприклад, залишився токен від попередньої сесії) — декодуємо з JWT
+    if (apiToken && (!userRole || !userLogin)) {
+      const role = decodeRoleFromToken(apiToken);
+      const payload = (() => { try { return JSON.parse(atob(apiToken.split('.')[1])); } catch { return {}; } })();
+      if (role) {
+        setUserRole(role);
+        localStorage.setItem('userRole', role);
+      }
+      if (payload.login) {
+        setUserLogin(payload.login);
+        localStorage.setItem('userLogin', payload.login);
+      }
+    }
+  }, [apiToken, userRole, userLogin]);
 
   // Ініціалізація projectId з URL + початкове завантаження списку проєктів (може дати 401 без токена)
   useEffect(() => {
@@ -243,7 +270,11 @@ const App = () => {
     loadData().catch((e) => {
       if (e?.code === 401 || e?.message === 'auth') {
         localStorage.removeItem('apiToken');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('userLogin');
         setToken('');
+        setUserRole('');
+        setUserLogin('');
         setSnackbar({ open: true, message: 'Сесія завершена. Увійдіть знову.' });
       } else {
         console.error(e);
@@ -258,7 +289,11 @@ const App = () => {
       () => {
         // Якщо SSE впав без відновлення — виходимо із сесії
         localStorage.removeItem('apiToken');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('userLogin');
         setToken('');
+        setUserRole('');
+        setUserLogin('');
         setSnackbar({ open: true, message: 'Сесія завершена. Увійдіть знову.' });
       }
     );
@@ -420,6 +455,14 @@ const App = () => {
                 const res = await login(credentials.username, credentials.password);
                 if (res.token) {
                   localStorage.setItem('apiToken', res.token);
+                  if (res.role) {
+                    localStorage.setItem('userRole', res.role);
+                    setUserRole(res.role);
+                  }
+                  if (res.login) {
+                    localStorage.setItem('userLogin', res.login);
+                    setUserLogin(res.login);
+                  }
                   setToken(res.token);
                   window.history.pushState({ projectId: null }, '', window.location.pathname);
                 }
@@ -437,7 +480,25 @@ const App = () => {
 
   if (!projectId && !demoMode) {
     return (
-      <Container maxWidth="md" sx={{ py: 6, textAlign: 'center' }}>
+      <>
+        <Dialog
+          open={showUsers}
+          onClose={() => setShowUsers(false)}
+          maxWidth="md"
+          fullWidth
+        >
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            Користувачі
+            <IconButton size="small" onClick={() => setShowUsers(false)}>
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent dividers>
+            <UsersPanel projects={projects} currentRole={userRole} />
+          </DialogContent>
+        </Dialog>
+
+        <Container maxWidth="md" sx={{ py: 6, textAlign: 'center' }}>
         <Typography variant="h5" gutterBottom>Оберіть CRM проєкт</Typography>
         <Stack direction="row" spacing={2} justifyContent="center">
           {projects.map((p) => (
@@ -446,6 +507,7 @@ const App = () => {
               variant="contained"
               onClick={() => {
                 setProjectId(p.id);
+                setShowUsers(false);
                 const url = new URL(window.location.href);
                 url.searchParams.set('project', p.id);
                 window.history.pushState({ projectId: p.id }, '', url.toString());
@@ -455,23 +517,31 @@ const App = () => {
             </Button>
           ))}
         </Stack>
-        <Button
-          sx={{ mt: 2 }}
-          variant="outlined"
-          onClick={() => {
-            setDemoMode(true);
-            const url = new URL(window.location.href);
-            url.searchParams.set('demo', '1');
-            window.history.pushState({ projectId: -1, demo: true }, '', url.toString());
-            loadData().catch(console.error);
-          }}
-        >
-          Демо дані (моки)
-        </Button>
-        <Button sx={{ mt: 2 }} onClick={() => { localStorage.removeItem('apiToken'); setToken(''); }}>
-          Вийти
-        </Button>
-      </Container>
+        <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 2 }}>
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setDemoMode(true);
+              setShowUsers(false);
+              const url = new URL(window.location.href);
+              url.searchParams.set('demo', '1');
+              window.history.pushState({ projectId: -1, demo: true }, '', url.toString());
+              loadData().catch(console.error);
+            }}
+          >
+            Демо дані (моки)
+          </Button>
+          {(userRole === 'admin' || userRole === 'super_admin') && (
+            <Button variant="outlined" onClick={() => setShowUsers(true)}>
+              Користувачі
+            </Button>
+          )}
+          <Button onClick={() => { localStorage.removeItem('apiToken'); localStorage.removeItem('userRole'); localStorage.removeItem('userLogin'); setToken(''); setUserRole(''); setUserLogin(''); setShowUsers(false); }}>
+            Вийти
+          </Button>
+        </Stack>
+        </Container>
+      </>
     );
   }
 
@@ -511,6 +581,11 @@ const App = () => {
           <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: '100%', display: 'block' }}>
             Ланцюжок: {Object.values(stageLabels).join(' → ')}
           </Typography>
+          {userRole && (
+            <Typography variant="body2" color="text.secondary" noWrap>
+              Користувач: {userLogin || '—'} ({userRole})
+            </Typography>
+          )}
         </Box>
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" rowGap={1}>
           {Object.entries(stageLimits).map(([gid, limit]) => {
@@ -565,7 +640,9 @@ const App = () => {
             color="secondary"
             onClick={() => {
               localStorage.removeItem('apiToken');
+              localStorage.removeItem('userRole');
               setToken('');
+              setUserRole('');
               setProjectId(null);
               setDemoMode(false);
               const url = new URL(window.location.href);
@@ -598,9 +675,11 @@ const App = () => {
         >
           Звіти
         </Button>
-        <Button size="small" variant="outlined" onClick={() => setShowSettings(true)}>
-          Налаштування
-        </Button>
+        {userRole !== 'user' && (
+          <Button size="small" variant="outlined" onClick={() => setShowSettings(true)}>
+            Налаштування
+          </Button>
+        )}
       </Box>
 
       <Dialog
@@ -637,6 +716,26 @@ const App = () => {
             }}
             onNearChange={(t) => setNearThreshold(t)}
             onCycleSaved={() => loadData(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showUsers}
+        onClose={() => setShowUsers(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Користувачі
+          <IconButton size="small" onClick={() => setShowUsers(false)}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <UsersPanel
+            projects={projects}
+            currentRole={userRole}
           />
         </DialogContent>
       </Dialog>

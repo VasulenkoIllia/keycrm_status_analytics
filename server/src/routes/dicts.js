@@ -1,8 +1,9 @@
 import express from 'express';
+import { requireProjectAccess } from '../middleware/access.js';
 
 const router = express.Router();
 
-router.get('/statuses', async (req, res) => {
+router.get('/statuses', requireProjectAccess(), async (req, res) => {
   const projectId = Number(req.query.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   try {

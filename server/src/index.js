@@ -12,8 +12,10 @@ import dictsRouter from './routes/dicts.js';
 import settingsRouter from './routes/settings.js';
 import streamRouter from './routes/stream.js';
 import projectsRouter from './routes/projects.js';
+import usersRouter from './routes/users.js';
 import { apiAuth, loginHandler } from './middleware/auth.js';
 import { startWebhookWorker } from './workers/webhookQueue.js';
+import { seedSuperAdmin } from './db/users.js';
 
 dotenv.config({ path: '../.env' });
 
@@ -95,6 +97,7 @@ const resources = {
 };
 
 resources.webhookWorker = await startWebhookWorker(app, logger);
+await seedSuperAdmin(pool, logger);
 
 app.get('/health', async (req, res) => {
   const checks = { db: 'unknown', redis: 'unknown' };
@@ -124,6 +127,7 @@ app.use('/api/orders', ordersRouter);
 app.use('/api/dicts', dictsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/stream', streamRouter);
+app.use('/api/users', usersRouter);
 
 const graceful = async (signal) => {
   if (resources.shuttingDown) return;

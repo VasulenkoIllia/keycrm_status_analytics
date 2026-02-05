@@ -1,8 +1,9 @@
 import express from 'express';
+import { requireRole, requireProjectAccess } from '../middleware/access.js';
 
 const router = express.Router();
 
-router.get('/cycle', async (req, res) => {
+router.get('/cycle', requireProjectAccess(), async (req, res) => {
   const projectId = Number(req.query.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   try {
@@ -19,7 +20,7 @@ router.get('/cycle', async (req, res) => {
   }
 });
 
-router.put('/cycle', async (req, res) => {
+router.put('/cycle', requireRole('admin', 'super_admin'), async (req, res) => {
   const projectId = Number(req.body.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   const { cycle_rule_id, start_group_id, end_group_id, start_status_id = null, end_status_id = null, title = 'Цикл' } = req.body;
@@ -53,7 +54,7 @@ router.put('/cycle', async (req, res) => {
   }
 });
 
-router.get('/sla', async (req, res) => {
+router.get('/sla', requireProjectAccess(), async (req, res) => {
   const projectId = Number(req.query.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   try {
@@ -70,7 +71,7 @@ router.get('/sla', async (req, res) => {
   }
 });
 
-router.put('/sla', async (req, res) => {
+router.put('/sla', requireRole('admin', 'super_admin'), async (req, res) => {
   const projectId = Number(req.body.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   const rules = req.body.rules || [];
@@ -109,7 +110,7 @@ router.put('/sla', async (req, res) => {
   }
 });
 
-router.get('/project', async (req, res) => {
+router.get('/project', requireProjectAccess(), async (req, res) => {
   const projectId = Number(req.query.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   try {
@@ -146,7 +147,7 @@ router.get('/project', async (req, res) => {
   }
 });
 
-router.put('/project', async (req, res) => {
+router.put('/project', requireRole('admin', 'super_admin'), async (req, res) => {
   const projectId = Number(req.body.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   const { name = null, base_url = null, api_token = null, webhook_url = null, webhook_token = null, dashboard_limit = null } = req.body;
@@ -189,7 +190,7 @@ router.put('/project', async (req, res) => {
   }
 });
 
-router.get('/urgent-rules', async (req, res) => {
+router.get('/urgent-rules', requireProjectAccess(), async (req, res) => {
   const projectId = Number(req.query.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   try {
@@ -208,7 +209,7 @@ router.get('/urgent-rules', async (req, res) => {
   }
 });
 
-router.get('/webhook-stats', async (req, res) => {
+router.get('/webhook-stats', requireProjectAccess(), async (req, res) => {
   const redis = req.app.get('redisPub');
   if (!redis) return res.status(503).json({ error: 'redis unavailable' });
   try {
@@ -222,7 +223,7 @@ router.get('/webhook-stats', async (req, res) => {
 
 import { recomputeUrgentForProject } from '../services/urgentRules.js';
 
-router.put('/urgent-rules', async (req, res) => {
+router.put('/urgent-rules', requireRole('admin', 'super_admin'), async (req, res) => {
   const projectId = Number(req.body.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   const rules = req.body.rules || [];
@@ -257,7 +258,7 @@ router.put('/urgent-rules', async (req, res) => {
   }
 });
 
-router.get('/working-hours', async (req, res) => {
+router.get('/working-hours', requireProjectAccess(), async (req, res) => {
   const projectId = Number(req.query.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   try {
@@ -320,7 +321,7 @@ function normalizeRangesInput(raw) {
   return normalized;
 }
 
-router.put('/working-hours', async (req, res) => {
+router.put('/working-hours', requireRole('admin', 'super_admin'), async (req, res) => {
   const projectId = Number(req.body.project_id);
   if (!Number.isInteger(projectId)) return res.status(400).json({ error: 'project_id required' });
   const rules = req.body.rules || [];

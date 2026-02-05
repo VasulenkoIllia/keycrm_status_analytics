@@ -1,35 +1,31 @@
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+import { findUserByLogin } from '../db/users.js';
 
-const DEFAULT_USER = 'admin';
-const DEFAULT_PASS = 'admin123';
 const DEFAULT_SECRET = 'dev_secret';
+const SECRET = process.env.JWT_SECRET || DEFAULT_SECRET;
 
-const creds = {
-  user: process.env.AUTH_USER || DEFAULT_USER,
-  pass: process.env.AUTH_PASS || DEFAULT_PASS,
-  secret: process.env.JWT_SECRET || DEFAULT_SECRET
-};
-
-const getCreds = () => creds;
-
-export function issueToken(username) {
-  const { secret } = getCreds();
-  return jwt.sign({ sub: username }, secret, { expiresIn: '8h' });
+export function issueToken(user) {
+  return jwt.sign({ sub: user.id, login: user.login, role: user.role }, SECRET, { expiresIn: '8h' });
 }
 
 export function verifyToken(token) {
-  const { secret } = getCreds();
-  return jwt.verify(token, secret);
+  return jwt.verify(token, SECRET);
 }
 
 export function loginHandler(req, res) {
-  const { user, pass } = getCreds();
   const { username, password } = req.body || {};
-  if (username === user && password === pass) {
-    const token = issueToken(username);
-    return res.json({ token });
-  }
-  return res.status(401).json({ error: 'unauthorized' });
+  if (!username || !password) return res.status(401).json({ error: 'unauthorized' });
+  const db = req.app.get('db');
+  findUserByLogin(db, username)
+    .then(async (u) => {
+      if (!u || !u.is_active) return res.status(401).json({ error: 'unauthorized' });
+      const ok = await bcrypt.compare(password, u.password_hash);
+      if (!ok) return res.status(401).json({ error: 'unauthorized' });
+      const token = issueToken(u);
+      return res.json({ token, role: u.role, login: u.login });
+    })
+    .catch(() => res.status(500).json({ error: 'internal' }));
 }
 
 export function apiAuth(req, res, next) {
@@ -37,11 +33,20 @@ export function apiAuth(req, res, next) {
   const token = header.startsWith('Bearer ') ? header.slice(7) : (req.query.token || '');
   if (!token) return res.status(401).json({ error: 'unauthorized' });
   try {
-    verifyToken(token);
+    const payload = verifyToken(token);
+    req.user = payload;
     return next();
   } catch (e) {
     return res.status(401).json({ error: 'unauthorized' });
   }
+}
+
+export function requireRole(...roles) {
+  return (req, res, next) => {
+    const role = req.user?.role;
+    if (!role || !roles.includes(role)) return res.status(403).json({ error: 'forbidden' });
+    return next();
+  };
 }
 
 export function webhookAuth(req, res, next) {

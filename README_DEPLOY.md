@@ -23,8 +23,11 @@ docker network create proxy  # якщо ще немає
 # 2) Запуск зі збіркою
 docker compose -f docker-compose.deploy.yml up -d --build
 
-# 3) Прогнати міграції (обов'язково при першому розгортанні)
+# 3) Прогнати міграції (обов'язково при першому розгортанні та після оновлень)
 docker compose -f docker-compose.deploy.yml run --rm backend node scripts/run-migrations.js
+
+# 4) Залогінитись супер-адміном (seed із .env: SEED_SUPERADMIN_LOGIN/PASS, дефолт admin/admin),
+#    створити користувачів і видати доступи до проєктів у UI (кнопка "Користувачі" на екрані вибору проєкту).
 ```
 
 ### Змінні/порти
@@ -33,6 +36,9 @@ docker compose -f docker-compose.deploy.yml run --rm backend node scripts/run-mi
 - Frontend: служить на 80 всередині контейнера, Traefik термінує TLS
 - VITE_API_BASE: прокидається під час білду фронту (див. docker-compose.deploy.yml)
 - PUBLIC_BASE_URL (опц.): базовий публічний URL бекенду (https://orderstatus.workflo.space). Якщо `webhook_url` у БД порожній, бекенд згенерує `PUBLIC_BASE_URL/api/webhooks/keycrm?project={id}` автоматично при запиті `/api/settings/project`.
+- SEED_SUPERADMIN_LOGIN / SEED_SUPERADMIN_PASS — початковий супер-адмін (JWT логін), створюється при старті. Паролі мінімум 6 символів.
+- JWT_SECRET — секрет підпису токенів (8 год).
+- WEBHOOK_TOKEN / ALLOW_EMPTY_WEBHOOK_TOKEN — для прийому вебхуків (див. нижче).
 
 ### Traefik
 - Фронт: `https://orderstatus.workflo.space`
@@ -47,6 +53,7 @@ docker compose -f docker-compose.deploy.yml run --rm backend node scripts/run-mi
   1) якщо `WEBHOOK_TOKEN` env і збіг — прохід;
   2) інакше перевіряється `projects.webhook_token` для `project_id`; **якщо токен проєкту відсутній або не переданий — 401**.
 - `project` у query обов'язковий.
+- Вебхук не потребує JWT, ACL для користувачів його не торкається.
 
 ## Структура даних
 - Усі налаштування та дані зберігаються в Postgres, Redis використовується лише як брокер подій (втрата ключів не критична — система самовідновиться, максимум потрібно рефрешнути UI).

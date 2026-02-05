@@ -226,3 +226,56 @@ export async function fetchProjects() {
   const res = await fetch(url, { headers: { ...authHeaders() } });
   return handle(res, 'Не вдалося отримати проєкти');
 }
+
+// --- Users & access management ---
+export async function fetchUsers() {
+  const url = new URL('/api/users', API_BASE);
+  const res = await fetch(url, { headers: { ...authHeaders() } });
+  return handle(res, 'Не вдалося отримати користувачів');
+}
+
+export async function createUser(payload) {
+  const url = new URL('/api/users', API_BASE);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(payload)
+  });
+  return handle(res, 'Не вдалося створити користувача');
+}
+
+export async function updateUser(id, payload) {
+  const url = new URL(`/api/users/${id}`, API_BASE);
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(payload)
+  });
+  return handle(res, 'Не вдалося оновити користувача');
+}
+
+export async function updateUserPassword(id, password) {
+  const url = new URL(`/api/users/${id}/password`, API_BASE);
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ password })
+  });
+  return handle(res, 'Не вдалося змінити пароль');
+}
+
+export async function fetchUserProjects(id) {
+  const url = new URL(`/api/users/${id}/projects`, API_BASE);
+  const res = await fetch(url, { headers: { ...authHeaders() } });
+  return handle(res, 'Не вдалося отримати доступи користувача');
+}
+
+export async function updateUserProjects(id, projects) {
+  const url = new URL(`/api/users/${id}/projects`, API_BASE);
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ projects })
+  });
+  return handle(res, 'Не вдалося оновити доступи користувача');
+}
