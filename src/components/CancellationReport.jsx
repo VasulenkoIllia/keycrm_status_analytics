@@ -10,6 +10,8 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  TableSortLabel,
+  TablePagination,
   Button
 } from '@mui/material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -30,19 +32,22 @@ const CancellationReport = ({ orders = [], stageLabels = {}, statuses = [], onFe
     to: dayjs().format('YYYY-MM-DD')
   });
   const [urgentFilter, setUrgentFilter] = useState('all');
+  const [sort, setSort] = useState({ key: 'updated', dir: 'desc' });
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
 
   useEffect(() => {
     onFetch(range.from, range.to);
   }, [range.from, range.to, onFetch]);
 
   const data = useMemo(() => {
-    const total = orders.length;
     const statusMap = Object.fromEntries(statuses.map((s) => [String(s.id), s.name]));
     const filteredUrgent = orders.filter((o) => {
       if (urgentFilter === 'urgent') return o.is_urgent;
       if (urgentFilter === 'normal') return !o.is_urgent;
       return true;
     });
+    const total = filteredUrgent.length;
     const canceled = filteredUrgent.filter((o) =>
       isCancelStage(stageLabels[o.last_status_group_id], o.last_status_group_id)
     );
@@ -95,7 +100,78 @@ const CancellationReport = ({ orders = [], stageLabels = {}, statuses = [], onFe
     }));
 
     return { total, canceled, rate, stageRows, prevStageRows, prevStatusRows, statusMap };
-  }, [orders, stageLabels, statuses]);
+  }, [orders, stageLabels, statuses, urgentFilter]);
+
+  const prevStageStatus = (o) => {
+    if (o.prev_group_id) {
+      const name = stageLabels[o.prev_group_id] || o.prev_group_id;
+      const sName = data.statusMap[String(o.prev_status_id)] || o.prev_status_id || '';
+      return `${name} / ${sName}`;
+    }
+    const tl = (o.timeline || []).slice().sort(
+      (a, b) => new Date(a.enteredAt) - new Date(b.enteredAt)
+    );
+    if (tl.length >= 2) {
+      const prev = tl[tl.length - 2];
+      const name = stageLabels[prev.group_id] || prev.stage || prev.group_id;
+      const sName = data.statusMap[String(prev.status_id)] || prev.status || prev.status_id || '';
+      return `${name} / ${sName}`;
+    }
+    return '—';
+  };
+
+  const sortedCanceled = useMemo(() => {
+    const rows = [...data.canceled];
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    const getValue = (o) => {
+      switch (sort.key) {
+        case 'id':
+          return o.order_id || 0;
+        case 'stage':
+          return stageLabels[o.last_status_group_id] || String(o.last_status_group_id || '');
+        case 'prev':
+          return prevStageStatus(o);
+        case 'created':
+          return o.order_created_at ? new Date(o.order_created_at).getTime() : null;
+        case 'updated':
+          return o.last_changed_at ? new Date(o.last_changed_at).getTime() : null;
+        default:
+          return 0;
+      }
+    };
+    const compare = (a, b) => {
+      if (a == null && b == null) return 0;
+      if (a == null) return 1;
+      if (b == null) return -1;
+      if (typeof a === 'string' || typeof b === 'string') {
+        return String(a).localeCompare(String(b), 'uk', { numeric: true, sensitivity: 'base' });
+      }
+      return a - b;
+    };
+    rows.sort((a, b) => compare(getValue(a), getValue(b)) * dir);
+    return rows;
+  }, [data.canceled, sort, stageLabels, data.statusMap]);
+
+  useEffect(() => {
+    if (page > 0 && page * rowsPerPage >= sortedCanceled.length) setPage(0);
+  }, [sortedCanceled.length, page, rowsPerPage]);
+
+  const toggleSort = (key) => {
+    setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+  };
+
+  const headCellSx = { fontWeight: 700 };
+  const sortLabel = (key, label) => (
+    <TableSortLabel
+      active={sort.key === key}
+      direction={sort.key === key ? sort.dir : 'asc'}
+      onClick={() => toggleSort(key)}
+      sx={{ fontWeight: 700 }}
+    >
+      {label}
+    </TableSortLabel>
+  );
+  const paged = sortedCanceled.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   const resetRange = () => {
     const today = dayjs().format('YYYY-MM-DD');
@@ -202,16 +278,25 @@ const CancellationReport = ({ orders = [], stageLabels = {}, statuses = [], onFe
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>Етап відміни</TableCell>
-              <TableCell>Попередній етап / статус</TableCell>
-              <TableCell>Створено</TableCell>
-              <TableCell>Оновлено</TableCell>
-              <TableCell />
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'id' ? sort.dir : false}>
+                {sortLabel('id', 'ID')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'stage' ? sort.dir : false}>
+                {sortLabel('stage', 'Етап відміни')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'prev' ? sort.dir : false}>
+                {sortLabel('prev', 'Попередній етап / статус')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'created' ? sort.dir : false}>
+                {sortLabel('created', 'Створено')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'updated' ? sort.dir : false}>
+                {sortLabel('updated', 'Оновлено')}
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {data.canceled.slice(0, 500).map((o, idx) => (
+            {paged.map((o, idx) => (
               <TableRow
                 key={o.order_id}
                 hover
@@ -223,26 +308,7 @@ const CancellationReport = ({ orders = [], stageLabels = {}, statuses = [], onFe
               >
                 <TableCell>{o.order_id}</TableCell>
                 <TableCell>{stageLabels[o.last_status_group_id] || o.last_status_group_id}</TableCell>
-                <TableCell>
-                  {(() => {
-                    if (o.prev_group_id) {
-                      const name = stageLabels[o.prev_group_id] || o.prev_group_id;
-                      const sName = data.statusMap[String(o.prev_status_id)] || o.prev_status_id || '';
-                      return `${name} / ${sName}`;
-                    }
-                    // fallback із таймлайна, якщо бекенд не повернув prev_*
-                    const tl = (o.timeline || []).slice().sort(
-                      (a, b) => new Date(a.enteredAt) - new Date(b.enteredAt)
-                    );
-                    if (tl.length >= 2) {
-                      const prev = tl[tl.length - 2];
-                      const name = stageLabels[prev.group_id] || prev.stage || prev.group_id;
-                      const sName = data.statusMap[String(prev.status_id)] || prev.status || prev.status_id || '';
-                      return `${name} / ${sName}`;
-                    }
-                    return '—';
-                  })()}
-                </TableCell>
+                <TableCell>{prevStageStatus(o)}</TableCell>
                 <TableCell>{fmtDateTime(o.order_created_at)}</TableCell>
                 <TableCell>{fmtDateTime(o.last_changed_at)}</TableCell>
               </TableRow>
@@ -254,11 +320,20 @@ const CancellationReport = ({ orders = [], stageLabels = {}, statuses = [], onFe
             )}
           </TableBody>
         </Table>
-        {data.canceled.length > 500 && (
-          <Typography variant="caption" color="text.secondary">
-            Показано 500 з {data.canceled.length}. Звузьте період.
-          </Typography>
-        )}
+        <TablePagination
+          component="div"
+          count={sortedCanceled.length}
+          page={page}
+          onPageChange={(_, nextPage) => setPage(nextPage)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(e) => {
+            setRowsPerPage(parseInt(e.target.value, 10));
+            setPage(0);
+          }}
+          rowsPerPageOptions={[10, 25, 50, 100, 250, 500]}
+          labelRowsPerPage="Рядків на сторінці"
+          labelDisplayedRows={({ from, to, count }) => `${from}–${to} з ${count}`}
+        />
       </CardContent>
     </Card>
   );

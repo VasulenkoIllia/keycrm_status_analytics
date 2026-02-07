@@ -10,6 +10,8 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  TableSortLabel,
+  TablePagination,
   Chip,
   Button
 } from '@mui/material';
@@ -24,6 +26,9 @@ const StageTimeReport = ({ orders = [], stageLabels = {}, onFetch = () => {}, on
     to: dayjs().format('YYYY-MM-DD')
   });
   const [urgentFilter, setUrgentFilter] = useState('all');
+  const [sort, setSort] = useState({ key: 'updated', dir: 'desc' });
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
 
   useEffect(() => {
     onFetch(range.from, range.to);
@@ -36,6 +41,65 @@ const StageTimeReport = ({ orders = [], stageLabels = {}, onFetch = () => {}, on
       return true;
     });
   }, [orders, urgentFilter]);
+
+  const sorted = useMemo(() => {
+    const rows = [...filtered];
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    const calendarTotal = (o) =>
+      o.stage_calendar_seconds ? Object.values(o.stage_calendar_seconds).reduce((s, v) => s + (v || 0), 0) : 0;
+    const getValue = (o) => {
+      switch (sort.key) {
+        case 'id':
+          return o.order_id || 0;
+        case 'urgent':
+          return o.is_urgent ? 1 : 0;
+        case 'created':
+          return o.order_created_at ? new Date(o.order_created_at).getTime() : null;
+        case 'updated':
+          return o.last_changed_at ? new Date(o.last_changed_at).getTime() : null;
+        case 'work':
+          return o.cycle_seconds || 0;
+        case 'calendar':
+          return calendarTotal(o);
+        case 'stages':
+          return o.stage_seconds ? Object.keys(o.stage_seconds).length : 0;
+        default:
+          return 0;
+      }
+    };
+    const compare = (a, b) => {
+      if (a == null && b == null) return 0;
+      if (a == null) return 1;
+      if (b == null) return -1;
+      if (typeof a === 'string' || typeof b === 'string') {
+        return String(a).localeCompare(String(b), 'uk', { numeric: true, sensitivity: 'base' });
+      }
+      return a - b;
+    };
+    rows.sort((a, b) => compare(getValue(a), getValue(b)) * dir);
+    return rows;
+  }, [filtered, sort]);
+
+  useEffect(() => {
+    if (page > 0 && page * rowsPerPage >= sorted.length) setPage(0);
+  }, [sorted.length, page, rowsPerPage]);
+
+  const toggleSort = (key) => {
+    setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+  };
+
+  const headCellSx = { fontWeight: 700 };
+  const sortLabel = (key, label) => (
+    <TableSortLabel
+      active={sort.key === key}
+      direction={sort.key === key ? sort.dir : 'asc'}
+      onClick={() => toggleSort(key)}
+      sx={{ fontWeight: 700 }}
+    >
+      {label}
+    </TableSortLabel>
+  );
+  const paged = sorted.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   const stats = useMemo(() => {
     const stageSumWork = {};
@@ -171,17 +235,31 @@ const StageTimeReport = ({ orders = [], stageLabels = {}, onFetch = () => {}, on
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>Термінове</TableCell>
-              <TableCell>Створено</TableCell>
-              <TableCell>Оновлено</TableCell>
-              <TableCell>Цикл роб.</TableCell>
-              <TableCell>Цикл факт.</TableCell>
-              <TableCell>Етапи</TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'id' ? sort.dir : false}>
+                {sortLabel('id', 'ID')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'urgent' ? sort.dir : false}>
+                {sortLabel('urgent', 'Термінове')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'created' ? sort.dir : false}>
+                {sortLabel('created', 'Створено')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'updated' ? sort.dir : false}>
+                {sortLabel('updated', 'Оновлено')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'work' ? sort.dir : false}>
+                {sortLabel('work', 'Цикл роб.')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'calendar' ? sort.dir : false}>
+                {sortLabel('calendar', 'Цикл факт.')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'stages' ? sort.dir : false}>
+                {sortLabel('stages', 'Етапи')}
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filtered.slice(0, 500).map((o, idx) => {
+            {paged.map((o, idx) => {
               const calTotal = o.stage_calendar_seconds
                 ? Object.values(o.stage_calendar_seconds).reduce((s, v) => s + (v || 0), 0)
                 : 0;
@@ -227,11 +305,20 @@ const StageTimeReport = ({ orders = [], stageLabels = {}, onFetch = () => {}, on
             )}
           </TableBody>
         </Table>
-        {filtered.length > 500 && (
-          <Typography variant="caption" color="text.secondary">
-            Показано 500 з {filtered.length}. Звузьте фільтр.
-          </Typography>
-        )}
+        <TablePagination
+          component="div"
+          count={sorted.length}
+          page={page}
+          onPageChange={(_, nextPage) => setPage(nextPage)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(e) => {
+            setRowsPerPage(parseInt(e.target.value, 10));
+            setPage(0);
+          }}
+          rowsPerPageOptions={[10, 25, 50, 100, 250, 500]}
+          labelRowsPerPage="Рядків на сторінці"
+          labelDisplayedRows={({ from, to, count }) => `${from}–${to} з ${count}`}
+        />
       </CardContent>
     </Card>
   );

@@ -41,7 +41,7 @@ const App = () => {
     slaState: '',
     stageGroup: '',
     statusId: '',
-    sort: 'duration_desc' // duration_desc | duration_asc | date_desc | date_asc
+    sort: 'duration_desc' // duration_desc | duration_asc | calendar_desc | calendar_asc | date_desc | date_asc
   });
   const [dashboardLimit, setDashboardLimit] = useState(() => {
     const stored = Number(localStorage.getItem('dashboardLimit'));
@@ -350,9 +350,18 @@ const App = () => {
       return true;
     });
 
-    const duration = (o) => {
+    const workingDuration = (o) => {
       if (o.cycle_seconds != null) return o.cycle_seconds;
       if (o.stage_seconds) return Object.values(o.stage_seconds).reduce((s, v) => s + (v || 0), 0);
+      return 0;
+    };
+    const calendarDuration = (o) => {
+      if (o.start_at && o.end_at) {
+        const start = new Date(o.start_at).getTime();
+        const end = new Date(o.end_at).getTime();
+        if (Number.isFinite(start) && Number.isFinite(end)) return Math.max(0, (end - start) / 1000);
+      }
+      if (o.stage_calendar_seconds) return Object.values(o.stage_calendar_seconds).reduce((s, v) => s + (v || 0), 0);
       return 0;
     };
     const createdTs = (o) => new Date(o.order_created_at || o.started_at || o.last_changed_at || 0).getTime();
@@ -360,7 +369,10 @@ const App = () => {
     const sorted = [...list];
     switch (filters.sort) {
       case 'duration_asc':
-        sorted.sort((a, b) => duration(a) - duration(b));
+        sorted.sort((a, b) => workingDuration(a) - workingDuration(b));
+        break;
+      case 'calendar_asc':
+        sorted.sort((a, b) => calendarDuration(a) - calendarDuration(b));
         break;
       case 'id_desc':
         sorted.sort((a, b) => (b.order_id || 0) - (a.order_id || 0));
@@ -374,9 +386,12 @@ const App = () => {
       case 'date_asc':
         sorted.sort((a, b) => createdTs(a) - createdTs(b));
         break;
+      case 'calendar_desc':
+        sorted.sort((a, b) => calendarDuration(b) - calendarDuration(a));
+        break;
       case 'duration_desc':
       default:
-        sorted.sort((a, b) => duration(b) - duration(a));
+        sorted.sort((a, b) => workingDuration(b) - workingDuration(a));
         break;
     }
     return sorted;

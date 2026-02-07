@@ -108,8 +108,10 @@ const FilterBar = ({ filters, onChange, onSubmit, stageOptions = [], statusOptio
         onChange={handleChange('sort')}
         sx={{ minWidth: 220 }}
       >
-        <MenuItem value="duration_desc">Тривалість: довгі → короткі</MenuItem>
-        <MenuItem value="duration_asc">Тривалість: короткі → довгі</MenuItem>
+        <MenuItem value="duration_desc">Робочий час: довгі → короткі</MenuItem>
+        <MenuItem value="duration_asc">Робочий час: короткі → довгі</MenuItem>
+        <MenuItem value="calendar_desc">Фактичний час: довгі → короткі</MenuItem>
+        <MenuItem value="calendar_asc">Фактичний час: короткі → довгі</MenuItem>
         <MenuItem value="date_desc">Дата створення: новіші → старші</MenuItem>
         <MenuItem value="date_asc">Дата створення: старші → новіші</MenuItem>
         <MenuItem value="id_desc">Номер: більші → менші</MenuItem>

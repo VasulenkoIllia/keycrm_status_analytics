@@ -11,6 +11,8 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  TableSortLabel,
+  TablePagination,
   Button
 } from '@mui/material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -24,6 +26,9 @@ const ProductivityReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
     to: dayjs().format('YYYY-MM-DD')
   });
   const [urgentFilter, setUrgentFilter] = useState('all');
+  const [sort, setSort] = useState({ key: 'updated', dir: 'desc' });
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const handleResetRange = () => {
     const today = dayjs().format('YYYY-MM-DD');
     setRange({ from: today, to: today });
@@ -49,7 +54,7 @@ const ProductivityReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
     const stageTotals = {};
     const stageOver = {};
 
-    orders.forEach((o) => {
+    filteredByUrgent.forEach((o) => {
       if (!o.sla_states) return;
       Object.entries(o.sla_states).forEach(([gid, state]) => {
         stageTotals[gid] = (stageTotals[gid] || 0) + 1;
@@ -85,7 +90,58 @@ const ProductivityReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
     });
 
     return { total, overdueCount, overallRate, stageRows, overdueTable };
-  }, [orders, stageLabels]);
+  }, [orders, stageLabels, urgentFilter]);
+
+  const sortedOverdue = useMemo(() => {
+    const rows = [...data.overdueTable];
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    const getValue = (r) => {
+      switch (sort.key) {
+        case 'id':
+          return r.id || 0;
+        case 'stage':
+          return r.stage || '';
+        case 'created':
+          return r.created ? new Date(r.created).getTime() : null;
+        case 'updated':
+          return r.updated ? new Date(r.updated).getTime() : null;
+        default:
+          return 0;
+      }
+    };
+    const compare = (a, b) => {
+      if (a == null && b == null) return 0;
+      if (a == null) return 1;
+      if (b == null) return -1;
+      if (typeof a === 'string' || typeof b === 'string') {
+        return String(a).localeCompare(String(b), 'uk', { numeric: true, sensitivity: 'base' });
+      }
+      return a - b;
+    };
+    rows.sort((a, b) => compare(getValue(a), getValue(b)) * dir);
+    return rows;
+  }, [data.overdueTable, sort]);
+
+  useEffect(() => {
+    if (page > 0 && page * rowsPerPage >= sortedOverdue.length) setPage(0);
+  }, [sortedOverdue.length, page, rowsPerPage]);
+
+  const toggleSort = (key) => {
+    setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+  };
+
+  const headCellSx = { fontWeight: 700 };
+  const sortLabel = (key, label) => (
+    <TableSortLabel
+      active={sort.key === key}
+      direction={sort.key === key ? sort.dir : 'asc'}
+      onClick={() => toggleSort(key)}
+      sx={{ fontWeight: 700 }}
+    >
+      {label}
+    </TableSortLabel>
+  );
+  const paged = sortedOverdue.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   return (
     <Card>
@@ -168,15 +224,22 @@ const ProductivityReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>Етап з перевищенням</TableCell>
-              <TableCell>Створено</TableCell>
-              <TableCell>Оновлено</TableCell>
-              <TableCell />
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'id' ? sort.dir : false}>
+                {sortLabel('id', 'ID')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'stage' ? sort.dir : false}>
+                {sortLabel('stage', 'Етап з перевищенням')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'created' ? sort.dir : false}>
+                {sortLabel('created', 'Створено')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'updated' ? sort.dir : false}>
+                {sortLabel('updated', 'Оновлено')}
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {data.overdueTable.slice(0, 500).map((r, idx) => (
+            {paged.map((r, idx) => (
               <TableRow
                 key={r.id}
                 hover
@@ -194,16 +257,25 @@ const ProductivityReport = ({ orders = [], stageLabels = {}, onFetch = () => {},
             ))}
             {data.overdueTable.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5}>Немає протермінованих за вибраний період</TableCell>
+                <TableCell colSpan={4}>Немає протермінованих за вибраний період</TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
-        {data.overdueTable.length > 500 && (
-          <Typography variant="caption" color="text.secondary">
-            Показано 500 з {data.overdueTable.length}. Звузьте період або фільтри.
-          </Typography>
-        )}
+        <TablePagination
+          component="div"
+          count={sortedOverdue.length}
+          page={page}
+          onPageChange={(_, nextPage) => setPage(nextPage)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(e) => {
+            setRowsPerPage(parseInt(e.target.value, 10));
+            setPage(0);
+          }}
+          rowsPerPageOptions={[10, 25, 50, 100, 250, 500]}
+          labelRowsPerPage="Рядків на сторінці"
+          labelDisplayedRows={({ from, to, count }) => `${from}–${to} з ${count}`}
+        />
       </CardContent>
     </Card>
   );

@@ -12,6 +12,8 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  TableSortLabel,
+  TablePagination,
   FormControlLabel,
   Checkbox,
   Button
@@ -24,6 +26,16 @@ import { formatDuration, fmtDateTime } from '../utils/time';
 const durationSeconds = (o) => {
   if (o.cycle_seconds != null) return o.cycle_seconds;
   if (o.stage_seconds) return Object.values(o.stage_seconds).reduce((s, v) => s + (v || 0), 0);
+  return 0;
+};
+
+const calendarDurationSeconds = (o) => {
+  if (o.start_at && o.end_at) {
+    const start = new Date(o.start_at).getTime();
+    const end = new Date(o.end_at).getTime();
+    if (Number.isFinite(start) && Number.isFinite(end)) return Math.max(0, (end - start) / 1000);
+  }
+  if (o.stage_calendar_seconds) return Object.values(o.stage_calendar_seconds).reduce((s, v) => s + (v || 0), 0);
   return 0;
 };
 
@@ -48,11 +60,19 @@ const ReportsPanel = ({ orders = [], stageLabels = {}, statuses = [], onFetch = 
     onlyOverOrders: false,
     onlyOverStages: false
   });
+  const [sort, setSort] = useState({ key: 'updated', dir: 'desc' });
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
 
   // підвантаження даних за діапазоном дат (дата створення)
   useEffect(() => {
     onFetch(custom.from, custom.to);
   }, [custom.from, custom.to, onFetch]);
+
+  const statusMap = useMemo(
+    () => Object.fromEntries(statuses.map((s) => [String(s.id), s.name])),
+    [statuses]
+  );
 
   const filtered = useMemo(() => {
     const fromTs = custom.from ? dayjs(custom.from).startOf('day').valueOf() : null;
@@ -72,6 +92,68 @@ const ReportsPanel = ({ orders = [], stageLabels = {}, statuses = [], onFetch = 
       return true;
     });
   }, [orders, custom]);
+
+  const sorted = useMemo(() => {
+    const rows = [...filtered];
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    const slaScore = (state) => (state === 'over' ? 3 : state === 'near' ? 2 : state === 'ok' ? 1 : 0);
+    const getValue = (o) => {
+      switch (sort.key) {
+        case 'id':
+          return o.order_id || 0;
+        case 'stage':
+          return stageLabels[o.last_status_group_id] || String(o.last_status_group_id || '');
+        case 'status':
+          return statusMap[String(o.last_status_id)] || String(o.last_status_id || '');
+        case 'urgent':
+          return o.is_urgent ? 1 : 0;
+        case 'created':
+          return o.order_created_at ? new Date(o.order_created_at).getTime() : null;
+        case 'updated':
+          return o.last_changed_at ? new Date(o.last_changed_at).getTime() : null;
+        case 'work':
+          return durationSeconds(o);
+        case 'calendar':
+          return calendarDurationSeconds(o);
+        case 'sla':
+          return slaScore(slaState(o));
+        default:
+          return 0;
+      }
+    };
+    const compare = (a, b) => {
+      if (a == null && b == null) return 0;
+      if (a == null) return 1;
+      if (b == null) return -1;
+      if (typeof a === 'string' || typeof b === 'string') {
+        return String(a).localeCompare(String(b), 'uk', { numeric: true, sensitivity: 'base' });
+      }
+      return a - b;
+    };
+    rows.sort((a, b) => compare(getValue(a), getValue(b)) * dir);
+    return rows;
+  }, [filtered, sort, stageLabels, statusMap]);
+
+  useEffect(() => {
+    if (page > 0 && page * rowsPerPage >= sorted.length) setPage(0);
+  }, [sorted.length, page, rowsPerPage]);
+
+  const toggleSort = (key) => {
+    setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+  };
+
+  const headCellSx = { fontWeight: 700 };
+  const sortLabel = (key, label) => (
+    <TableSortLabel
+      active={sort.key === key}
+      direction={sort.key === key ? sort.dir : 'asc'}
+      onClick={() => toggleSort(key)}
+      sx={{ fontWeight: 700 }}
+    >
+      {label}
+    </TableSortLabel>
+  );
+  const paged = sorted.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   const handleReset = () => {
     setCustom({
@@ -214,19 +296,37 @@ const ReportsPanel = ({ orders = [], stageLabels = {}, statuses = [], onFetch = 
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>Етап</TableCell>
-              <TableCell>Статус</TableCell>
-              <TableCell>Термінове</TableCell>
-              <TableCell>Створено</TableCell>
-              <TableCell>Оновлено</TableCell>
-              <TableCell>Цикл (роб.)</TableCell>
-              <TableCell>SLA</TableCell>
-              <TableCell />
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'id' ? sort.dir : false}>
+                {sortLabel('id', 'ID')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'stage' ? sort.dir : false}>
+                {sortLabel('stage', 'Етап')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'status' ? sort.dir : false}>
+                {sortLabel('status', 'Статус')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'urgent' ? sort.dir : false}>
+                {sortLabel('urgent', 'Термінове')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'created' ? sort.dir : false}>
+                {sortLabel('created', 'Створено')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'updated' ? sort.dir : false}>
+                {sortLabel('updated', 'Оновлено')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'work' ? sort.dir : false}>
+                {sortLabel('work', 'Цикл (роб.)')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'calendar' ? sort.dir : false}>
+                {sortLabel('calendar', 'Цикл повного часу')}
+              </TableCell>
+              <TableCell sx={headCellSx} sortDirection={sort.key === 'sla' ? sort.dir : false}>
+                {sortLabel('sla', 'SLA')}
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filtered.slice(0, 500).map((o, idx) => (
+            {paged.map((o, idx) => (
               <TableRow
                 key={o.order_id}
                 hover
@@ -238,26 +338,36 @@ const ReportsPanel = ({ orders = [], stageLabels = {}, statuses = [], onFetch = 
               >
                 <TableCell>{o.order_id}</TableCell>
                 <TableCell>{stageLabels[o.last_status_group_id] || o.last_status_group_id}</TableCell>
-                <TableCell>{statuses.find((s) => String(s.id) === String(o.last_status_id))?.name || o.last_status_id}</TableCell>
+                <TableCell>{statusMap[String(o.last_status_id)] || o.last_status_id}</TableCell>
                 <TableCell>{o.is_urgent ? 'Так' : 'Ні'}</TableCell>
                 <TableCell>{fmtDateTime(o.order_created_at)}</TableCell>
                 <TableCell>{fmtDateTime(o.last_changed_at)}</TableCell>
                 <TableCell>{formatDuration(durationSeconds(o))}</TableCell>
+                <TableCell>{formatDuration(calendarDurationSeconds(o))}</TableCell>
                 <TableCell>{slaState(o)}</TableCell>
               </TableRow>
             ))}
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8}>Немає даних за вибраними умовами</TableCell>
+                <TableCell colSpan={9}>Немає даних за вибраними умовами</TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
-        {filtered.length > 500 && (
-          <Typography variant="caption" color="text.secondary">
-            Показано 500 з {filtered.length}. Звузьте фільтр для повного списку.
-          </Typography>
-        )}
+        <TablePagination
+          component="div"
+          count={sorted.length}
+          page={page}
+          onPageChange={(_, nextPage) => setPage(nextPage)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(e) => {
+            setRowsPerPage(parseInt(e.target.value, 10));
+            setPage(0);
+          }}
+          rowsPerPageOptions={[10, 25, 50, 100, 250, 500]}
+          labelRowsPerPage="Рядків на сторінці"
+          labelDisplayedRows={({ from, to, count }) => `${from}–${to} з ${count}`}
+        />
       </CardContent>
     </Card>
   );
