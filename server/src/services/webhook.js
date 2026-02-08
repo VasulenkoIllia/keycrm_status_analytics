@@ -24,7 +24,7 @@ export async function handleWebhook(db, redisPub, projectIdInput, body) {
   }
 
   const dedup = buildDedup(projectId, ctx);
-  const createdAt = ctx.created_at || ctx.ordered_at || null;
+  const createdAt = ctx.ordered_at || ctx.created_at || null;
 
   await db.query('BEGIN');
   try {

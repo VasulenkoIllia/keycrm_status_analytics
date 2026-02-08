@@ -40,7 +40,7 @@ async function fetchItemsAndUrgent(db, projectId, orderId, redisPub, attempt = 1
     throw err;
   }
   const products = data?.products || [];
-  const orderCreated = data?.created_at || data?.ordered_at || null;
+  const orderCreated = data?.ordered_at || data?.created_at || null;
 
   await db.query('BEGIN');
   try {
@@ -68,7 +68,7 @@ async function fetchItemsAndUrgent(db, projectId, orderId, redisPub, attempt = 1
 
     await db.query(
       `UPDATE orders_current
-       SET is_urgent = $3, urgent_rule = $4, order_created_at = COALESCE(order_created_at, $5), updated_at = NOW()
+       SET is_urgent = $3, urgent_rule = $4, order_created_at = COALESCE($5, order_created_at), updated_at = NOW()
        WHERE project_id = $1 AND order_id = $2`,
       [projectId, orderId, urgent, rule, orderCreated]
     );
