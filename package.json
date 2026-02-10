@@ -14,6 +14,7 @@
     "db:migrate": "node scripts/run-migrations.js",
     "db:clear:orders": "node scripts/clear-orders.js",
     "seed:custom": "node scripts/seed-custom.js custom-gifts",
+    "seed:project": "node scripts/seed-project.js",
     "server": "cd server && npm run dev",
     "frontend": "npm run dev"
   },

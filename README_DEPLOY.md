@@ -14,6 +14,13 @@
 - Таймзона всіх контейнерів: `Europe/Kyiv`
 - API відповіді віддаються з `Cache-Control: no-store` і без ETag, щоб фронт завжди бачив свіжі дані (більше трафіку, зате без 304/кешів).
 - Якщо потрібен тимчасовий режим сумісності без токена вебхука: `ALLOW_EMPTY_WEBHOOK_TOKEN=true` (за замовчуванням вимкнено, без токена — 401).
+- Авторизація в UI — cookie (JWT у `auth_token`, `SameSite=Lax`, `Secure` у prod).
+
+### Приклади .env
+- Dev: `.env.example.dev`
+- Prod: `.env.example.prod`
+
+Секрети не зберігаємо в репозиторії. Скопіюй потрібний файл у `.env` і заповни реальні значення.
 
 ### Запуск
 ```bash
@@ -38,7 +45,9 @@ docker compose -f docker-compose.deploy.yml run --rm backend node scripts/run-mi
 - PUBLIC_BASE_URL (опц.): базовий публічний URL бекенду (https://orderstatus.workflo.space). Якщо `webhook_url` у БД порожній, бекенд згенерує `PUBLIC_BASE_URL/api/webhooks/keycrm?project={id}` автоматично при запиті `/api/settings/project`.
 - SEED_SUPERADMIN_LOGIN / SEED_SUPERADMIN_PASS — початковий супер-адмін (JWT логін), створюється при старті. Паролі мінімум 6 символів.
 - JWT_SECRET — секрет підпису токенів (8 год).
+- CORS_ORIGINS — allowlist доменів для cookie-auth (наприклад, `https://orderstatus.workflo.space`). Якщо фронт на іншому домені — додай його.
 - WEBHOOK_TOKEN / ALLOW_EMPTY_WEBHOOK_TOKEN — для прийому вебхуків (див. нижче).
+ - NODE_ENV=production — потрібен для `Secure` cookie у продакшні.
 
 ### Traefik
 - Фронт: `https://orderstatus.workflo.space`
@@ -55,6 +64,26 @@ docker compose -f docker-compose.deploy.yml run --rm backend node scripts/run-mi
 - `project` у query обов'язковий.
 - Вебхук не потребує JWT, ACL для користувачів його не торкається.
 
+## Доступ до БД з локального ПК (безпечний)
+Рекомендовано відкривати БД **лише на localhost сервера** і підключатися через SSH-тунель.
+
+У `docker-compose.deploy.yml` вже є маппінг:
+```
+127.0.0.1:15432:5432
+```
+
+Тунель:
+```bash
+ssh -L 15432:127.0.0.1:15432 user@your-server
+```
+
+Підключення локально:
+- host: `127.0.0.1`
+- port: `15432`
+- user: `PGUSER`
+- password: `PGPASSWORD`
+- db: `PGDATABASE`
+
 ## Структура даних
 - Усі налаштування та дані зберігаються в Postgres, Redis використовується лише як брокер подій (втрата ключів не критична — система самовідновиться, максимум потрібно рефрешнути UI).
 
@@ -65,3 +94,22 @@ docker compose -f docker-compose.deploy.yml run --rm backend node scripts/run-mi
 4. Додати правила SLA/терміновості/робочі години під конкретний `project_id`.
 5. Перевірити `/health` бекенду (200 OK).
 6. Надіслати тестовий вебхук із KeyCRM на вказаний URL і переконатися, що замовлення з'явилось у списку.
+
+## Додавання нового проєкту (KeyCRM)
+1. Отримай статуси KeyCRM у JSON (активні):
+```bash
+KEYCRM_API_TOKEN=... node scripts/export-active-statuses.js > /tmp/statuses.json
+```
+2. Сід нового проєкту:
+```bash
+node scripts/seed-project.js --name "project-name" --status-file /tmp/statuses.json --token ... --base-url https://openapi.keycrm.app/v1
+```
+У проді можна виконати в контейнері:
+```bash
+docker compose -f docker-compose.deploy.yml run --rm backend \
+  node scripts/seed-project.js --name "project-name" --status-file /tmp/statuses.json --token ... --base-url https://openapi.keycrm.app/v1
+```
+3. У UI перевір `webhook_token` і налаштуй вебхук:
+```
+/api/webhooks/keycrm?project=ID&token=WEBHOOK_TOKEN
+```

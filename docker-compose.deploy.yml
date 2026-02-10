@@ -21,9 +21,8 @@ services:
       REDIS_URL: redis://redis:6379
       PORT: 4000
       TZ: Europe/Kyiv
-      AUTH_USER: ${AUTH_USER:?set AUTH_USER in .env}
-      AUTH_PASS: ${AUTH_PASS:?set AUTH_PASS in .env}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://orderstatus.workflo.space}
     restart: unless-stopped
     networks:
       - app-net
@@ -75,6 +74,8 @@ services:
       TZ: Europe/Kyiv
     volumes:
       - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:15432:5432"
     networks:
       - app-net
     healthcheck:

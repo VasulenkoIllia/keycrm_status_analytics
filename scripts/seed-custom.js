@@ -4,7 +4,7 @@ import path from 'path';
 import { Client } from 'pg';
 
 const PROJECT_NAME = process.argv[2] || process.env.PROJECT_NAME || 'custom-gifts';
-const STATUS_FILE = path.join(process.cwd(), 'statuses.json');
+const STATUS_FILE = process.env.STATUS_FILE || process.argv[3] || path.join(process.cwd(), 'statuses.json');
 
 if (!fs.existsSync(STATUS_FILE)) {
   console.error(`Не знайдено файл ${STATUS_FILE}`);

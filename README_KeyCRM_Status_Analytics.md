@@ -68,7 +68,8 @@ POST /api/webhooks/keycrm?project={id}&token=<webhook_token>
 
 Авторизація:
 - якщо env `WEBHOOK_TOKEN` збігся — прохід;
-- інакше перевіряється `projects.webhook_token` для `project_id`; якщо поле порожнє — прохід; якщо задане — має збігтися з переданим token.
+- інакше перевіряється `projects.webhook_token` для `project_id`;
+- якщо `projects.webhook_token` порожній — прохід лише коли `ALLOW_EMPTY_WEBHOOK_TOKEN=true`, інакше 401.
 
 Алгоритм:
 1. Валідація події
@@ -196,13 +197,13 @@ Webhook обробник максимально легкий.
 - **super_admin**: повні права, бачить усі проєкти, може створювати/деактивувати користувачів і видавати роль super_admin/admin/user.
 - **admin**: повні права на налаштування проєктів, створення користувачів (крім super_admin), видача доступів до проєктів.
 - **user**: лише перегляд своїх проєктів (user_projects), налаштування — read-only.
-- Аутентифікація: JWT (8 год). Таблиці `users`, `user_projects`. Супер-адмін сідається при старті з env `SEED_SUPERADMIN_LOGIN/SEED_SUPERADMIN_PASS`.
+- Аутентифікація: JWT у httpOnly cookie `auth_token` (8 год). Таблиці `users`, `user_projects`. Супер-адмін сідається при старті з env `SEED_SUPERADMIN_LOGIN/SEED_SUPERADMIN_PASS`.
 - Доступ до API/стріму/словників/замовлень перевіряється через `requireProjectAccess` (project_id із query/body/params).
 - UI: на екрані вибору проєкту доступна модалка “Користувачі” (для admin/super_admin) — CRUD користувачів, зміна пароля (мін. 6 символів), активність, призначення проєктів. У дашборді показується логін і роль поточного користувача.
 
 ## 11. Вебхуки (важливе)
 - Ендпоінт: `POST /api/webhooks/keycrm?project={id}&token=...` або заголовок `x-webhook-token`.
-- Авторизація вебхука не змінювалась: якщо `WEBHOOK_TOKEN` збігся — пропускає, інакше перевіряє `projects.webhook_token`; якщо токен проєкту порожній — 401.
+- Авторизація вебхука не змінювалась: якщо `WEBHOOK_TOKEN` збігся — пропускає, інакше перевіряє `projects.webhook_token`; якщо токен проєкту порожній — 401 (виняток: `ALLOW_EMPTY_WEBHOOK_TOKEN=true`).
 - Черга: Redis `webhook:queue`, воркер читає BRPOP, парсинг виправлено (res.element/res[1]).
 - Для діагностики: `/health` (db+redis), `/api/settings/webhook-stats` (JWT) — показує довжину черги.
 
@@ -218,6 +219,11 @@ Webhook обробник максимально легкий.
 - Наявність Redis/DB OK: `curl /health`.
 - Тест вебхука з токеном: POST на `/api/webhooks/keycrm?project=...&token=...` → 202 та пусту чергу у `/api/settings/webhook-stats`.
 - Логін супер-адміна з env; створення користувача, видача проєкту, перевірка що user бачить лише свої проєкти і налаштування read-only.
+
+## 15. Приклади .env
+- Dev: `.env.example.dev`
+- Prod: `.env.example.prod`
+Секрети зберігай лише у `.env`/`.env.*.local` (вони в `.gitignore`).
 
 **День 3**
 - Метрики
@@ -258,6 +264,10 @@ Webhook обробник максимально легкий.
 1. Скопіюй `.env.example` у `.env` і заповни `KEYCRM_API_TOKEN` (KeyCRM OpenAPI ключ), за потреби змінити `KEYCRM_BASE_URL` (стандартно `https://openapi.keycrm.app/v1`).
 2. Швидка перевірка: `npm run fetch:statuses` — тягне всі сторінки `GET /order/status`, показує «Всього статусів: N» і друкує повний JSON відповіді.
 3. Експорт активних статусів у компактний JSON (відсортовано за `group_id`, потім `id`): `npm run export:statuses > tmp/statuses.json`. Кожен елемент має `id`, `name`, `alias`, `is_active`, `group_id` — готово для `status_dict` / `status_group_dict`.
+4. Додавання нового проєкту з готовим файлом статусів:
+   ```
+   node scripts/seed-project.js --name "project-name" --status-file /path/statuses.json --token <KEYCRM_API_TOKEN> --base-url https://openapi.keycrm.app/v1
+   ```
 
 Якщо бачиш 404:
 - Перевір, що `KEYCRM_BASE_URL` має суфікс `/v1` (наприклад, `https://openapi.keycrm.app/v1`). Скрипт додає `/v1/` автоматично, якщо шлях порожній, але помилки в базовому URL дадуть 404 від nginx.

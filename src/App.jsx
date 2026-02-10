@@ -12,22 +12,11 @@ import CancellationReport from './components/CancellationReport';
 import SuccessReport from './components/SuccessReport';
 import SLAReport from './components/SLAReport';
 import StageTimeReport from './components/StageTimeReport';
-import { fetchOrders, fetchTimeline, fetchDicts, openOrdersStream, setApiToken, login, fetchSettingsSLA, saveOrderOverride, fetchProjects } from './api/client';
+import { fetchOrders, fetchTimeline, fetchDicts, openOrdersStream, login, logout, fetchMe, fetchSettingsSLA, saveOrderOverride, fetchProjects } from './api/client';
 import UsersPanel from './components/UsersPanel';
-import { STAGE_LABELS as MOCK_STAGE_LABELS, STAGE_LIMITS_HOURS, mockOrders, STATUS_BY_STAGE } from './data/mockOrders';
 import { formatDuration } from './utils/time';
 import dayjs from 'dayjs';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
-
-const decodeRoleFromToken = (token) => {
-  try {
-    const payload = token.split('.')[1];
-    const json = JSON.parse(atob(payload));
-    return json.role || '';
-  } catch (e) {
-    return '';
-  }
-};
 
 const PROJECTS_STATIC = [];
 
@@ -50,9 +39,10 @@ const App = () => {
   });
   const [projectId, setProjectId] = useState(null);
   const [projects, setProjects] = useState([]);
-  const [apiToken, setToken] = useState(() => localStorage.getItem('apiToken') || '');
-  const [userRole, setUserRole] = useState(() => localStorage.getItem('userRole') || '');
-  const [userLogin, setUserLogin] = useState(() => localStorage.getItem('userLogin') || '');
+  const [isAuthed, setIsAuthed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [userRole, setUserRole] = useState('');
+  const [userLogin, setUserLogin] = useState('');
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [dicts, setDicts] = useState({ groups: [], statuses: [] });
   const [orders, setOrders] = useState([]);
@@ -62,111 +52,25 @@ const App = () => {
   const [slaNormal, setSlaNormal] = useState({ 1: 8, 2: 24, 3: 24, 4: 12 });
   const [slaUrgent, setSlaUrgent] = useState({ 1: 8, 2: 16, 3: 16, 4: 8 });
   const [nearThreshold, setNearThreshold] = useState(0.8);
-  const [demoMode, setDemoMode] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
   const [view, setView] = useState('dashboard'); // dashboard | reports
   const [reportTab, setReportTab] = useState('custom'); // custom | productivity | cancellation | success | sla | stage
   const [reportsOrders, setReportsOrders] = useState([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
+  const [realtimeStatus, setRealtimeStatus] = useState('offline'); // online | offline | connecting
   const debouncedQuery = useDebouncedValue(filters.query, 200);
 
   const groupName = (groupId) =>
-    dicts.groups.find((g) => g.group_id === groupId)?.group_name ||
-    MOCK_STAGE_LABELS[Object.keys(MOCK_STAGE_LABELS)[groupId - 1]] ||
-    `Група ${groupId}`;
+    dicts.groups.find((g) => g.group_id === groupId)?.group_name || `Група ${groupId}`;
 
   const statusName = (statusId) =>
     dicts.statuses.find((s) => s.status_id === statusId)?.name || `#${statusId}`;
 
   const stageLimits = slaNormal;
 
-  // Demo helpers
-  const DEMO_STAGE_MAP = { new: 1, approval: 2, production: 3, delivery: 4 };
-
-  const buildDemoData = () => {
-    // groups
-    const groups = Object.entries(DEMO_STAGE_MAP).map(([key, gid]) => ({
-      group_id: gid,
-      group_name: MOCK_STAGE_LABELS[key] || `Група ${gid}`
-    }));
-    // statuses
-    let sid = 1;
-    const statuses = [];
-    Object.entries(STATUS_BY_STAGE).forEach(([stageKey, names]) => {
-      const gid = DEMO_STAGE_MAP[stageKey] || null;
-      names.forEach((nm) => {
-        statuses.push({ status_id: sid++, name: nm, group_id: gid, alias: nm, is_active: true });
-      });
-    });
-    // SLA from mock limits
-    const normal = {};
-    Object.entries(STAGE_LIMITS_HOURS).forEach(([stageKey, hours]) => {
-      const gid = DEMO_STAGE_MAP[stageKey];
-      if (gid) normal[gid] = hours;
-    });
-    const urgent = Object.fromEntries(Object.entries(normal).map(([g, h]) => [g, Math.max(1, h * 0.7)]));
-
-    // orders
-    const ordersMapped = mockOrders.slice(0, dashboardLimit).map((m) => {
-      const stageSeconds = {};
-      const slaStates = {};
-      // prefilling SLA states with neutral where limits exist
-      Object.entries(DEMO_STAGE_MAP).forEach(([, gid]) => {
-        const limit = urgent ? slaUrgent[gid] : slaNormal[gid];
-        if (limit) slaStates[gid] = 'neutral';
-      });
-      Object.entries(m.stageTimes).forEach(([stageKey, sec]) => {
-        const gid = DEMO_STAGE_MAP[stageKey];
-        if (gid) stageSeconds[gid] = sec;
-      });
-      const lastStage = m.timeline?.find((t) => !t.leftAt)?.stage || m.timeline?.slice(-1)[0]?.stage || 'new';
-      const lastStatusName = m.timeline?.find((t) => !t.leftAt)?.status || m.currentStatus || 'Статус';
-      const statusId = statuses.find((s) => s.name === lastStatusName)?.status_id || 0;
-      Object.entries(stageSeconds).forEach(([gid, seconds]) => {
-        const limit = normal[gid];
-        if (!limit) return;
-        if (seconds > limit * 3600) slaStates[gid] = 'over';
-        else if (seconds >= limit * 3600 * 0.8) slaStates[gid] = 'near';
-        else slaStates[gid] = 'ok';
-      });
-      const cycleSeconds = Object.values(stageSeconds).reduce((s, v) => s + v, 0);
-      return {
-        project_id: -1,
-        order_id: Number(m.id),
-        last_status_id: statusId,
-        last_status_group_id: DEMO_STAGE_MAP[lastStage] || 1,
-        last_changed_at: m.updatedAt,
-        is_urgent: false,
-        stage_seconds: stageSeconds,
-        sla_states: slaStates,
-        start_at: m.createdAt,
-        end_at: m.updatedAt,
-        cycle_seconds: cycleSeconds,
-        timeline: m.timeline || [],
-        created_raw: m.createdAt,
-        updated_raw: m.updatedAt,
-        status_name: lastStatusName
-      };
-    });
-
-    return {
-      dicts: { groups, statuses },
-      orders: ordersMapped,
-      slaNormal: normal,
-      slaUrgent: urgent
-    };
-  };
-
   const loadData = async (applyFilters = true) => {
-    if (demoMode) {
-      const demo = buildDemoData();
-      setDicts(demo.dicts);
-      setOrders(demo.orders);
-      setSlaNormal(demo.slaNormal);
-      setSlaUrgent(demo.slaUrgent);
-      return;
-    }
+    if (!isAuthed) return;
     if (!projectId) return;
     const params = { ...filters, limit: dashboardLimit };
     if (applyFilters) {
@@ -193,7 +97,7 @@ const App = () => {
 
   const fetchReportsData = useCallback(
     async (fromDate = '', toDate = '') => {
-      if (demoMode || !projectId) return;
+      if (!isAuthed || !projectId) return;
       setReportsLoading(true);
       try {
         const params = {};
@@ -208,48 +112,41 @@ const App = () => {
         setReportsLoading(false);
       }
     },
-    [projectId, demoMode]
+    [projectId, isAuthed]
   );
 
-  // Проставити токен у клієнт при зміні стейту
+  // Ініціалізація сесії з cookie
   useEffect(() => {
-    if (apiToken) setApiToken(apiToken);
-    // якщо роль не збережена (наприклад, залишився токен від попередньої сесії) — декодуємо з JWT
-    if (apiToken && (!userRole || !userLogin)) {
-      const role = decodeRoleFromToken(apiToken);
-      const payload = (() => { try { return JSON.parse(atob(apiToken.split('.')[1])); } catch { return {}; } })();
-      if (role) {
-        setUserRole(role);
-        localStorage.setItem('userRole', role);
-      }
-      if (payload.login) {
-        setUserLogin(payload.login);
-        localStorage.setItem('userLogin', payload.login);
-      }
-    }
-  }, [apiToken, userRole, userLogin]);
+    fetchMe()
+      .then((me) => {
+        setIsAuthed(true);
+        setUserRole(me.role || '');
+        setUserLogin(me.login || '');
+      })
+      .catch(() => {
+        setIsAuthed(false);
+        setUserRole('');
+        setUserLogin('');
+      })
+      .finally(() => setAuthChecked(true));
+  }, []);
 
   // Ініціалізація projectId з URL + початкове завантаження списку проєктів (може дати 401 без токена)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const pid = params.get('project');
-    const demo = params.get('demo');
-    if (demo === '1') setDemoMode(true);
     if (pid) setProjectId(Number(pid));
 
-    // завантажити список проектів
-    fetchProjects()
-      .then((res) => setProjects(res))
-      .catch(() => setProjects(PROJECTS_STATIC));
+    // завантажити список проектів (після auth)
   }, []);
 
-  // Після успішного логіну (є токен) підтягуємо список проєктів ще раз, щоб не треба було перезавантажувати сторінку
+  // Після успішного логіну підтягуємо список проєктів
   useEffect(() => {
-    if (!apiToken) return;
+    if (!isAuthed) return;
     fetchProjects()
       .then((res) => setProjects(res))
-      .catch(() => {}); // ігноруємо, якщо тимчасово не доступно
-  }, [apiToken]);
+      .catch(() => setProjects(PROJECTS_STATIC)); // ігноруємо, якщо тимчасово не доступно
+  }, [isAuthed]);
 
   // Обробка back/forward
   useEffect(() => {
@@ -266,13 +163,10 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (!projectId) return undefined;
+    if (!projectId || !isAuthed) return undefined;
     loadData().catch((e) => {
       if (e?.code === 401 || e?.message === 'auth') {
-        localStorage.removeItem('apiToken');
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('userLogin');
-        setToken('');
+        setIsAuthed(false);
         setUserRole('');
         setUserLogin('');
         setSnackbar({ open: true, message: 'Сесія завершена. Увійдіть знову.' });
@@ -280,34 +174,31 @@ const App = () => {
         console.error(e);
       }
     });
-    if (demoMode) return undefined;
     const es = openOrdersStream(
       projectId,
       () => {
         loadData().catch(console.error);
       },
       () => {
-        // Якщо SSE впав без відновлення — виходимо із сесії
-        localStorage.removeItem('apiToken');
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('userLogin');
-        setToken('');
-        setUserRole('');
-        setUserLogin('');
-        setSnackbar({ open: true, message: 'Сесія завершена. Увійдіть знову.' });
-      }
+        // Якщо SSE впав без відновлення — лише повідомляємо, без логауту
+        setSnackbar({ open: true, message: 'Realtime недоступний. Дані оновлюються вручну.' });
+      },
+      setRealtimeStatus
     );
-    return () => es.close();
+    return () => {
+      es.close();
+      setRealtimeStatus('offline');
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, filters.from, filters.to, apiToken, demoMode, dashboardLimit]);
+  }, [projectId, filters.from, filters.to, isAuthed, dashboardLimit]);
 
   // Скидаємо/оновлюємо дані звітів окремо від дашборду
   useEffect(() => {
     setReportsOrders([]);
-    if (view === 'reports' && projectId && !demoMode) {
+    if (view === 'reports' && projectId) {
       fetchReportsData();
     }
-  }, [projectId, demoMode, view, fetchReportsData]);
+  }, [projectId, view, fetchReportsData]);
 
   const filteredOrders = useMemo(() => {
     const q = debouncedQuery.trim();
@@ -398,11 +289,6 @@ const App = () => {
   }, [filters, orders]);
 
   const handleOpenTimeline = async (order) => {
-    if (demoMode) {
-      setTimeline(order.timeline || []);
-      setSelected({ ...order, timeline: order.timeline || [] });
-      return;
-    }
     try {
       const res = await fetchTimeline(projectId, order.order_id);
       const mapped = (res.timeline || []).map((t) => ({
@@ -431,7 +317,6 @@ const App = () => {
   }, [dicts.groups]);
 
   const handleToggleUrgent = async (order) => {
-    if (demoMode) return;
     try {
       await saveOrderOverride(projectId, order.order_id || order.id, {
         is_urgent_override: !order.isUrgent
@@ -443,7 +328,32 @@ const App = () => {
     }
   };
 
-  if (!apiToken) {
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (e) {
+      // ignore
+    } finally {
+      setIsAuthed(false);
+      setUserRole('');
+      setUserLogin('');
+      setProjectId(null);
+      setRealtimeStatus('offline');
+      const url = new URL(window.location.href);
+      url.searchParams.delete('project');
+      window.history.pushState({ projectId: null }, '', url.toString());
+    }
+  };
+
+  if (!authChecked) {
+    return (
+      <Container maxWidth="md" sx={{ py: 6, textAlign: 'center' }}>
+        <Typography variant="body2" color="text.secondary">Завантаження...</Typography>
+      </Container>
+    );
+  }
+
+  if (!isAuthed) {
     return (
       <Container maxWidth="md" sx={{ py: 6, textAlign: 'center' }}>
         <Typography variant="h5" gutterBottom>Вхід</Typography>
@@ -468,19 +378,10 @@ const App = () => {
             onClick={async () => {
               try {
                 const res = await login(credentials.username, credentials.password);
-                if (res.token) {
-                  localStorage.setItem('apiToken', res.token);
-                  if (res.role) {
-                    localStorage.setItem('userRole', res.role);
-                    setUserRole(res.role);
-                  }
-                  if (res.login) {
-                    localStorage.setItem('userLogin', res.login);
-                    setUserLogin(res.login);
-                  }
-                  setToken(res.token);
-                  window.history.pushState({ projectId: null }, '', window.location.pathname);
-                }
+                if (res.role) setUserRole(res.role);
+                if (res.login) setUserLogin(res.login);
+                setIsAuthed(true);
+                window.history.pushState({ projectId: null }, '', window.location.pathname);
               } catch (e) {
                 alert(e.message);
               }
@@ -493,7 +394,7 @@ const App = () => {
     );
   }
 
-  if (!projectId && !demoMode) {
+  if (!projectId) {
     return (
       <>
         <Dialog
@@ -533,25 +434,12 @@ const App = () => {
           ))}
         </Stack>
         <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 2 }}>
-          <Button
-            variant="outlined"
-            onClick={() => {
-              setDemoMode(true);
-              setShowUsers(false);
-              const url = new URL(window.location.href);
-              url.searchParams.set('demo', '1');
-              window.history.pushState({ projectId: -1, demo: true }, '', url.toString());
-              loadData().catch(console.error);
-            }}
-          >
-            Демо дані (моки)
-          </Button>
           {(userRole === 'admin' || userRole === 'super_admin') && (
             <Button variant="outlined" onClick={() => setShowUsers(true)}>
               Користувачі
             </Button>
           )}
-          <Button onClick={() => { localStorage.removeItem('apiToken'); localStorage.removeItem('userRole'); localStorage.removeItem('userLogin'); setToken(''); setUserRole(''); setUserLogin(''); setShowUsers(false); }}>
+          <Button onClick={() => { setShowUsers(false); handleLogout(); }}>
             Вийти
           </Button>
         </Stack>
@@ -591,7 +479,7 @@ const App = () => {
       <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between" mb={3}>
         <Box>
           <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>
-            Трекер часу — {demoMode ? 'Демо режим' : (projects.find((p) => p.id === projectId)?.name || `Проєкт #${projectId}`)}
+            Трекер часу — {projects.find((p) => p.id === projectId)?.name || `Проєкт #${projectId}`}
           </Typography>
           <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: '100%', display: 'block' }}>
             Ланцюжок: {Object.values(stageLabels).join(' → ')}
@@ -603,6 +491,14 @@ const App = () => {
           )}
         </Box>
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" rowGap={1}>
+          {realtimeStatus !== 'online' && (
+            <Chip
+              label={realtimeStatus === 'connecting' ? 'Realtime connecting' : 'Realtime offline'}
+              color="warning"
+              variant="outlined"
+              size="small"
+            />
+          )}
           {Object.entries(stageLimits).map(([gid, limit]) => {
             const urgent = slaUrgent[gid] ?? limit;
             const label = stageLabels[gid] || `Група ${gid}`;
@@ -634,43 +530,27 @@ const App = () => {
               </Box>
             );
           })}
-          {!demoMode && (
-            <Button
-              size="small"
-              variant="text"
-              color="inherit"
-              onClick={() => {
-                setProjectId(null);
-                const url = new URL(window.location.href);
-                url.searchParams.delete('project');
-                window.history.pushState({ projectId: null }, '', url.toString());
-              }}
-            >
-              Змінити CRM
-            </Button>
-          )}
+          <Button
+            size="small"
+            variant="text"
+            color="inherit"
+            onClick={() => {
+              setProjectId(null);
+              const url = new URL(window.location.href);
+              url.searchParams.delete('project');
+              window.history.pushState({ projectId: null }, '', url.toString());
+            }}
+          >
+            Змінити CRM
+          </Button>
           <Button
             size="small"
             variant="outlined"
             color="secondary"
-            onClick={() => {
-              localStorage.removeItem('apiToken');
-              localStorage.removeItem('userRole');
-              setToken('');
-              setUserRole('');
-              setProjectId(null);
-              setDemoMode(false);
-              const url = new URL(window.location.href);
-              url.searchParams.delete('project');
-              url.searchParams.delete('demo');
-              window.history.pushState({ projectId: null }, '', url.toString());
-            }}
+            onClick={handleLogout}
           >
             Вийти
           </Button>
-          {demoMode && (
-            <Chip label="Демо дані" color="info" variant="outlined" />
-          )}
         </Stack>
       </Box>
 

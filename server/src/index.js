@@ -46,6 +46,38 @@ const logger = pino(
   transport
 );
 
+const SENSITIVE_PARAM_RE = /(token|authorization|password|secret|webhook)/i;
+
+function redactQuery(query) {
+  if (!query || typeof query !== 'object') return query;
+  const out = {};
+  for (const [key, value] of Object.entries(query)) {
+    if (SENSITIVE_PARAM_RE.test(key)) {
+      out[key] = '[REDACTED]';
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+function safeUrl(req) {
+  const raw = req.originalUrl || req.url || '';
+  if (!raw || !raw.includes('?')) return raw || req.path || '';
+  try {
+    const u = new URL(raw, 'http://localhost');
+    for (const key of u.searchParams.keys()) {
+      if (SENSITIVE_PARAM_RE.test(key)) {
+        u.searchParams.set(key, '[REDACTED]');
+      }
+    }
+    const search = u.searchParams.toString();
+    return `${u.pathname}${search ? `?${search}` : ''}`;
+  } catch {
+    return req.path || raw.split('?')[0];
+  }
+}
+
 app.use(pinoHttp({
   logger,
   customLogLevel: (req, res, err) => {
@@ -56,24 +88,35 @@ app.use(pinoHttp({
   },
   serializers: {
     req(req) {
-      return { id: req.id, method: req.method, url: req.url, query: req.query, params: req.params };
+      return { id: req.id, method: req.method, url: safeUrl(req), query: redactQuery(req.query), params: req.params };
     },
     res(res) {
       return { statusCode: res.statusCode };
     },
     err: pino.stdSerializers.err
   },
-  customSuccessMessage: (req, res) => `${req.method} ${req.url} -> ${res.statusCode}`,
-  customErrorMessage: (req, res, err) => `${req.method} ${req.url} -> ${res.statusCode} ${err ? err.message : ''}`.trim(),
+  customSuccessMessage: (req, res) => `${req.method} ${safeUrl(req)} -> ${res.statusCode}`,
+  customErrorMessage: (req, res, err) => `${req.method} ${safeUrl(req)} -> ${res.statusCode} ${err ? err.message : ''}`.trim(),
   autoLogging: { ignorePaths: ['/health'] }
 }));
 
 app.use(helmet());
-app.use(cors({
-  origin: '*',
+const corsOrigins = (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const corsOptions = {
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true); // non-browser or same-origin
+    if (!corsOrigins.length) return cb(null, true); // allow all if not specified
+    if (corsOrigins.includes(origin)) return cb(null, true);
+    return cb(null, false);
+  },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
-}));
+};
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 // Не кешувати API-відповіді — корисно для живої аналітики та миттєвих оновлень
 app.use((req, res, next) => {
@@ -121,7 +164,19 @@ app.use('/webhooks/keycrm', webhookRouter);
 // дублюємо під /api/... щоб обійти apiAuth для webhook
 app.use('/api/webhooks/keycrm', webhookRouter);
 app.post('/api/login', express.json(), loginHandler);
+app.post('/api/logout', (req, res) => {
+  res.clearCookie('auth_token', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/'
+  });
+  res.json({ ok: true });
+});
 app.use('/api', apiAuth);
+app.get('/api/me', (req, res) => {
+  res.json({ id: req.user.sub, login: req.user.login, role: req.user.role });
+});
 app.use('/api/projects', projectsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/dicts', dictsRouter);

@@ -1,0 +1,314 @@
+[
+  {
+    "id": 1,
+    "name": "new",
+    "alias": "new",
+    "is_active": true,
+    "group_id": 1,
+    "group_name": "Новий"
+  },
+  {
+    "id": 4,
+    "name": "Обробка замовлення",
+    "alias": "obrobka_zamovlennya",
+    "is_active": true,
+    "group_id": 2,
+    "group_name": "Погодження"
+  },
+  {
+    "id": 5,
+    "name": "Очікує відправки",
+    "alias": "ocikuje_vidpravki",
+    "is_active": true,
+    "group_id": 3,
+    "group_name": "Виробництво"
+  },
+  {
+    "id": 23,
+    "name": "Заміна",
+    "alias": "zamina",
+    "is_active": true,
+    "group_id": 3,
+    "group_name": "Виробництво"
+  },
+  {
+    "id": 46,
+    "name": "Отримано повернення",
+    "alias": "otrimano_povernennya",
+    "is_active": true,
+    "group_id": 3,
+    "group_name": "Виробництво"
+  },
+  {
+    "id": 47,
+    "name": "НЕ ГОТОВА ДО ВІДПРАВКИ",
+    "alias": "ne_gotova_do_vidpravki",
+    "is_active": true,
+    "group_id": 3,
+    "group_name": "Виробництво"
+  },
+  {
+    "id": 8,
+    "name": "delivered_to_delivery",
+    "alias": "delivered_to_delivery",
+    "is_active": true,
+    "group_id": 4,
+    "group_name": "Доставка"
+  },
+  {
+    "id": 9,
+    "name": "delivered",
+    "alias": "delivered",
+    "is_active": true,
+    "group_id": 4,
+    "group_name": "Доставка"
+  },
+  {
+    "id": 10,
+    "name": "departing",
+    "alias": "departing",
+    "is_active": true,
+    "group_id": 4,
+    "group_name": "Доставка"
+  },
+  {
+    "id": 11,
+    "name": "in_transit",
+    "alias": "in_transit",
+    "is_active": true,
+    "group_id": 4,
+    "group_name": "Доставка"
+  },
+  {
+    "id": 22,
+    "name": "Прибув у відділення",
+    "alias": "pribuv_u_viddilennya",
+    "is_active": true,
+    "group_id": 4,
+    "group_name": "Доставка"
+  },
+  {
+    "id": 25,
+    "name": "Заміна доставляється",
+    "alias": "zamina_dostavlyajetsya",
+    "is_active": true,
+    "group_id": 4,
+    "group_name": "Доставка"
+  },
+  {
+    "id": 26,
+    "name": "Заміна доставлено",
+    "alias": "zamina_dostavleno",
+    "is_active": true,
+    "group_id": 4,
+    "group_name": "Доставка"
+  },
+  {
+    "id": 45,
+    "name": "Замовлення повертається",
+    "alias": "zamovlennya_povertajetsya",
+    "is_active": true,
+    "group_id": 4,
+    "group_name": "Доставка"
+  },
+  {
+    "id": 12,
+    "name": "completed",
+    "alias": "completed",
+    "is_active": true,
+    "group_id": 5,
+    "group_name": "Виконано"
+  },
+  {
+    "id": 21,
+    "name": "Успішно",
+    "alias": "uspisno",
+    "is_active": true,
+    "group_id": 5,
+    "group_name": "Виконано"
+  },
+  {
+    "id": 24,
+    "name": "Заміна успіх",
+    "alias": "zamina_uspix",
+    "is_active": true,
+    "group_id": 5,
+    "group_name": "Виконано"
+  },
+  {
+    "id": 52,
+    "name": "Оплату отримано відправником",
+    "alias": "oplatu_otrimano_vidpravnikom",
+    "is_active": true,
+    "group_id": 5,
+    "group_name": "Виконано"
+  },
+  {
+    "id": 13,
+    "name": "Некорректні данні",
+    "alias": "nekorrektni_danni",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 14,
+    "name": "Не виходить на зв’язок",
+    "alias": "ne_vixodit_na_zvyazok",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 15,
+    "name": "Немає в наявності",
+    "alias": "nemaje_v_nayavnosti",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 16,
+    "name": "Придбав у конкурентів",
+    "alias": "pridbav_u_konkurentiv",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 17,
+    "name": "Відмовився озвучити причину",
+    "alias": "vidmovivsya_ozvuciti_pricinu",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 18,
+    "name": "Дорого",
+    "alias": "dorogo",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 19,
+    "name": "canceled",
+    "alias": "canceled",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 28,
+    "name": "Відгуки/недовіра",
+    "alias": "vidgukinedovira",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 30,
+    "name": "Механічні пошкодження",
+    "alias": "mexanicni_poskodzennya",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 31,
+    "name": "Спам",
+    "alias": "spam",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 32,
+    "name": "Скасовано Дублікат",
+    "alias": "skasovano_dublikat",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 33,
+    "name": "Не може забрати фізично",
+    "alias": "ne_moze_zabrati_fizicno",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 34,
+    "name": "Технічні несправності",
+    "alias": "texnicni_nespravnosti",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 35,
+    "name": "Прийшов не той товар",
+    "alias": "priisov_ne_toi_tovar",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 36,
+    "name": "Пошкоджено перевізником",
+    "alias": "poskodzeno_pereviznikom",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 37,
+    "name": "Неповна комплектація",
+    "alias": "nepovna_komplektaciya",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 43,
+    "name": "Не встигне прийти",
+    "alias": "ne_vstigne_priiti",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 48,
+    "name": "ГОТОВА ДО ВІДПРАВКИ",
+    "alias": "gotova_do_vidpravki",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 49,
+    "name": "Не зручний додаток",
+    "alias": "ne_zrucnii_dodatok",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 50,
+    "name": "Не підійшла",
+    "alias": "ne_pidiisla",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  },
+  {
+    "id": 51,
+    "name": "Повернуто кошти",
+    "alias": "povernuto_kosti",
+    "is_active": true,
+    "group_id": 6,
+    "group_name": "Відміна"
+  }
+]

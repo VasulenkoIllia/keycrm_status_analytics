@@ -4,6 +4,22 @@ import { findUserByLogin } from '../db/users.js';
 
 const DEFAULT_SECRET = 'dev_secret';
 const SECRET = process.env.JWT_SECRET || DEFAULT_SECRET;
+const TOKEN_COOKIE = 'auth_token';
+
+function parseCookies(header) {
+  const out = {};
+  if (!header) return out;
+  const parts = header.split(';');
+  for (const part of parts) {
+    const idx = part.indexOf('=');
+    if (idx === -1) continue;
+    const key = part.slice(0, idx).trim();
+    const val = part.slice(idx + 1).trim();
+    if (!key) continue;
+    out[key] = decodeURIComponent(val);
+  }
+  return out;
+}
 
 export function issueToken(user) {
   return jwt.sign({ sub: user.id, login: user.login, role: user.role }, SECRET, { expiresIn: '8h' });
@@ -23,14 +39,22 @@ export function loginHandler(req, res) {
       const ok = await bcrypt.compare(password, u.password_hash);
       if (!ok) return res.status(401).json({ error: 'unauthorized' });
       const token = issueToken(u);
+      res.cookie(TOKEN_COOKIE, token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 8 * 60 * 60 * 1000,
+        path: '/'
+      });
       return res.json({ token, role: u.role, login: u.login });
     })
     .catch(() => res.status(500).json({ error: 'internal' }));
 }
 
 export function apiAuth(req, res, next) {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : (req.query.token || '');
+  const cookies = parseCookies(req.headers.cookie || '');
+  const cookieToken = cookies[TOKEN_COOKIE] || '';
+  const token = cookieToken;
   if (!token) return res.status(401).json({ error: 'unauthorized' });
   try {
     const payload = verifyToken(token);
