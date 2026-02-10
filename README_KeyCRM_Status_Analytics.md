@@ -195,7 +195,7 @@ Webhook обробник максимально легкий.
 ## 10. Ролі та доступи
 
 - **super_admin**: повні права, бачить усі проєкти, може створювати/деактивувати користувачів і видавати роль super_admin/admin/user.
-- **admin**: повні права на налаштування проєктів, створення користувачів (крім super_admin), видача доступів до проєктів.
+- **admin**: права керування користувачами (крім super_admin). Доступ до проєктів та даних **лише в межах user_projects**.
 - **user**: лише перегляд своїх проєктів (user_projects), налаштування — read-only.
 - Аутентифікація: JWT у httpOnly cookie `auth_token` (8 год). Таблиці `users`, `user_projects`. Супер-адмін сідається при старті з env `SEED_SUPERADMIN_LOGIN/SEED_SUPERADMIN_PASS`.
 - Доступ до API/стріму/словників/замовлень перевіряється через `requireProjectAccess` (project_id із query/body/params).

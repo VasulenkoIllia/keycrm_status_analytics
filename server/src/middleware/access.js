@@ -28,7 +28,7 @@ export function requireProjectAccess() {
       'SELECT 1 FROM user_projects WHERE user_id = $1 AND project_id = $2 LIMIT 1',
       [user.sub, projectId]
     );
-    if (check.rows.length === 0 && user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
+    if (check.rows.length === 0) return res.status(403).json({ error: 'forbidden' });
 
     return next();
   };

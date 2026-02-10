@@ -7,20 +7,20 @@ router.get('/', requireRole('admin', 'super_admin', 'user'), async (req, res) =>
   try {
     const db = req.app.get('db');
     const role = req.user.role;
-    if (role === 'user') {
+    if (role === 'super_admin') {
       const rows = await db.query(
-        `SELECT p.id, p.name, p.base_url, p.webhook_url, p.is_active, p.created_at, p.updated_at
-         FROM projects p
-         INNER JOIN user_projects up ON up.project_id = p.id
-         WHERE up.user_id = $1
-         ORDER BY p.id ASC`,
-        [req.user.sub]
+        'SELECT id, name, base_url, webhook_url, is_active, created_at, updated_at FROM projects ORDER BY id ASC'
       );
       return res.json(rows.rows);
     }
-    // admin / super_admin see all
+    // admin/user: only assigned projects
     const rows = await db.query(
-      'SELECT id, name, base_url, webhook_url, is_active, created_at, updated_at FROM projects ORDER BY id ASC'
+      `SELECT p.id, p.name, p.base_url, p.webhook_url, p.is_active, p.created_at, p.updated_at
+       FROM projects p
+       INNER JOIN user_projects up ON up.project_id = p.id
+       WHERE up.user_id = $1
+       ORDER BY p.id ASC`,
+      [req.user.sub]
     );
     return res.json(rows.rows);
   } catch (e) {
